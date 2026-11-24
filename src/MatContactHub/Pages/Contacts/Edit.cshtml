@@ -1,0 +1,35 @@
+@page "/Contacts/Edit"
+@model MatContactHub.Pages.Contacts.EditModel
+@{
+    var name = Model.IsNew ? L["Contacts.New"].Value : Model.DisplayName;
+    ViewData["Title"] = name;
+    ViewData["Crumbs"] = new List<(string, string?)> { (L["Contacts.Title"].Value, "/Contacts"), (Model.IsNew ? L["Common.New"].Value : Model.DisplayName, null) };
+    ViewData["NavKey"] = "contacts";
+    ViewData["Width"] = "narrow";
+    var locked = !Model.CanEdit;
+}
+
+<form class="mat-form" method="post" novalidate>
+    <partial name="_FormSummary" model="ViewData.ModelState" />
+    @if (Model.Synced)
+    {
+        <div class="mat-alert mat-alert--info" role="status">
+            @Ui.Icon("info")
+            <div class="mat-alert__body">@L["Contacts.Synced.Text", Model.SourceName ?? string.Empty]</div>
+        </div>
+    }
+    <div class="mat-card">
+        <div class="mat-card__body mat-form">
+            <md-field name="AddressBookId" kind="select" label="@L["Contacts.Col.AddressBook"]" value="@Model.AddressBookId" options="Model.AddressBooks" disabled="@locked" />
+            <md-field name="FirstName" label="@L["Contacts.FirstName"]" value="@Model.FirstName" maxlength="100" optional disabled="@locked" />
+            <md-field name="LastName" label="@L["Contacts.LastName"]" value="@Model.LastName" maxlength="100" optional disabled="@locked" />
+            <md-field name="DisplayName" label="@L["Contacts.DisplayName"]" value="@Model.DisplayName" maxlength="255" optional disabled="@locked" hint="@L["Contacts.DisplayName.Hint"]" />
+            <md-field name="Company" label="@L["Contacts.Col.Company"]" value="@Model.Company" maxlength="255" optional disabled="@locked" />
+            <md-field name="Email" kind="email" label="@L["Contacts.Col.Email"]" value="@Model.Email" maxlength="254" optional disabled="@locked" />
+            <md-field name="PhoneBusiness" kind="tel" label="@L["Contacts.PhoneBusiness"]" value="@Model.PhoneBusiness" maxlength="64" optional disabled="@locked" />
+            <md-field name="PhoneMobile" kind="tel" label="@L["Contacts.PhoneMobile"]" value="@Model.PhoneMobile" maxlength="64" optional disabled="@locked" />
+            <md-field name="Hidden" kind="switch" label="@L["Contacts.Hidden"]" value="@Model.Hidden.ToString()" hint="@L["Contacts.Hidden.Hint"]" />
+        </div>
+    </div>
+    <md-buttons save="@L["Common.Save"]" back="/Contacts" delete-handler="@(Model.IsNew || !Model.CanEdit ? null : "Delete")" delete-confirm="@L["Contacts.DeleteConfirm", Model.DisplayName]" />
+</form>

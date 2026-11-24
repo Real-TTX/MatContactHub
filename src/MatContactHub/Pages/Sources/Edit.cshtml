@@ -1,0 +1,30 @@
+@page "/Sources/Edit"
+@model MatContactHub.Pages.Sources.EditModel
+@{
+    ViewData["Title"] = Model.IsNew ? L["Sources.New"].Value : Model.Name;
+    ViewData["Crumbs"] = new List<(string, string?)> { (L["Admin.Title"].Value, null), (L["Sources.Title"].Value, "/Sources"), (Model.IsNew ? L["Common.New"].Value : Model.Name, null) };
+    ViewData["Width"] = "narrow";
+}
+
+<form class="mat-form" method="post" novalidate>
+    <partial name="_FormSummary" model="ViewData.ModelState" />
+    <div class="mat-card">
+        <div class="mat-card__body mat-form">
+            <md-field name="Name" label="@L["Common.Name"]" required value="@Model.Name" maxlength="120" />
+            <md-field name="Kind" kind="radios" label="@L["Sources.Col.Kind"]" value="@Model.Kind" options="Model.Kinds" disabled="@(!Model.IsNew)" />
+            <md-field name="AddressBookId" kind="select" label="@L["Contacts.Col.AddressBook"]" value="@Model.AddressBookId" options="Model.AddressBooks" required />
+            <md-field name="Enabled" kind="switch" label="@L["Sources.Enabled"]" value="@Model.Enabled.ToString()" />
+            <md-field name="IntervalMinutes" kind="number" label="@L["Sources.Interval"]" value="@Model.IntervalMinutes" min="0" max="10080" inputmode="numeric" hint="@L["Sources.Interval.Hint"]" />
+            <md-field name="KeyField" label="@L["Sources.KeyField"]" value="@Model.KeyField" maxlength="255" optional mono hint="@L["Sources.KeyField.Hint"]" />
+            <md-field name="DeleteMissing" kind="switch" label="@L["Sources.DeleteMissing"]" value="@Model.DeleteMissing.ToString()" hint="@L["Sources.DeleteMissing.Hint"]" />
+        </div>
+    </div>
+    <p class="md-placeholder">@L["Common.NotYet"]</p>
+    <md-buttons save="@L["Common.Save"]" back="/Sources" delete-handler="@(Model.IsNew ? null : "Delete")" delete-confirm="@L["Sources.DeleteConfirm", Model.Name]" />
+</form>
+@if (!Model.IsNew)
+{
+    <form method="post" asp-page-handler="Sync" asp-route-id="@Model.Id" class="md-mt">
+        <button type="submit" class="mat-btn mat-btn--secondary">@Ui.Icon("refresh")<span>@L["Sources.SyncNow"]</span></button>
+    </form>
+}

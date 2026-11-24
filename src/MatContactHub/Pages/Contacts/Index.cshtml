@@ -1,0 +1,45 @@
+@page "/Contacts"
+@model MatContactHub.Pages.Contacts.IndexModel
+@{
+    ViewData["Title"] = L["Contacts.Title"].Value;
+    ViewData["NavKey"] ??= "contacts";
+    ViewData["SearchText"] = Model.Toolbar.Search;
+}
+
+<div class="mat-list">
+    <partial name="_Toolbar" model="Model.Toolbar" />
+
+    @if (Model.Items.Count == 0)
+    {
+        <partial name="_Empty" model="@(new EmptyStateModel("users", L[Model.Toolbar.Total == 0 ? "Contacts.Empty" : "Contacts.NoMatch"].Value, L[Model.Toolbar.Total == 0 ? "Contacts.Empty.Text" : "Lists.ChangeTools"].Value, Model.Toolbar.Total == 0 && Model.CanCreate, "/Contacts/Edit", L["Contacts.New"].Value, Model.Toolbar.UrlReset()))" />
+    }
+    else
+    {
+        <md-table caption="@L["Contacts.Title"]">
+            <thead>
+                <tr><th scope="col">@L["Common.Name"]</th><th scope="col" class="mat-hide-sm">@L["Contacts.Col.Company"]</th><th scope="col" class="mat-hide-md">@L["Contacts.Col.Phone"]</th><th scope="col" class="mat-hide-md">@L["Contacts.Col.Email"]</th><th scope="col" class="mat-hide-sm">@L["Contacts.Col.AddressBook"]</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var c in Model.Items)
+                {
+                    <tr>
+                        <td data-label="@L["Common.Name"]"><div class="mat-table__name"><span class="mat-avatar mat-avatar--sm" aria-hidden="true">@Ui.Initials(c.DisplayName)</span><span><a href="/Contacts/Edit?id=@c.Id">@c.DisplayName</a>@if (c.Synced) { <small>@L["Contacts.Synced"]</small> }</span></div></td>
+                        <td data-label="@L["Contacts.Col.Company"]" class="mat-hide-sm">@c.Company</td>
+                        <td data-label="@L["Contacts.Col.Phone"]" class="mat-mono mat-hide-md">@c.Phone</td>
+                        <td data-label="@L["Contacts.Col.Email"]" class="mat-hide-md md-path">@c.Email</td>
+                        <td data-label="@L["Contacts.Col.AddressBook"]" class="mat-hide-sm">@c.AddressBook</td>
+                    </tr>
+                }
+            </tbody>
+        </md-table>
+    }
+
+    <partial name="_Pager" model="Model.Pager" />
+
+    @if (Model.CanCreate)
+    {
+        <div class="mat-actions">
+            <a class="mat-btn mat-btn--primary" href="/Contacts/Edit">@Ui.Icon("plus")<span>@L["Contacts.New"]</span></a>
+        </div>
+    }
+</div>

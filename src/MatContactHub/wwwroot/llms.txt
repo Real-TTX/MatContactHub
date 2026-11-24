@@ -1,0 +1,26 @@
+# MatContactHub
+
+> MatContactHub is a self-hosted contact directory with a web interface. It imports contacts from REST APIs, Microsoft SQL Server and CSV files, unifies them with a field mapping per source and keeps them in sync automatically. People keep manual contacts next to them, organise everything in address books and find duplicates. A built-in LDAP server (LDAP, StartTLS and LDAPS) serves selected address books to telephone systems such as STARFACE, IP phones (Yealink, Snom, Grandstream …) and mail clients. Part of the Mat family of self-hosted apps.
+
+Everything except the start page needs an account: contacts are personal data. The interface is available in English and German. Contacts never leave the installation unless an administrator shares an address book with the LDAP server or with an app.
+
+## What people can do
+
+- Search, filter and sort the contacts of the address books they may see (name, company, numbers, e-mail), open a contact with its communication, address and notes.
+- Create, change and delete manual contacts in the address books where they are editors; contacts from a data source are read-only (the source wins), only "hidden" can be set on them.
+- Export contacts as vCard, import vCard and CSV files into a manual address book.
+- Find duplicates (the same number, e-mail address or name and company), merge them or mark them as "not a duplicate".
+- Download everything the app keeps about their account (JSON) and delete their account.
+
+## What administrators can do
+
+- Create address books, give people the role Viewer or Editor, share an address book with everybody, with the LDAP server and with apps.
+- Add data sources (REST with authentication and pagination, SQL Server with a query, CSV upload or address), preview their records, map their fields to the fields of a contact (with templates and transforms such as phone number normalisation), and synchronise them on a schedule or by hand; every run is kept with its numbers.
+- Configure the LDAP server: base DN, StartTLS and LDAPS (a self-signed certificate or an uploaded PFX), the format of the telephone numbers, accounts for the phones and telephone systems, and see the log of the queries.
+- See users, the activity log and the numbers of the installation; connect other apps (sign-in through MatIdentity, mail through MatSMTP).
+
+## Interfaces
+
+- LDAP on port 389 (plain and StartTLS) and LDAPS on port 636 (7389 and 7636 in the development stacks): `ou=<address book>,dc=matcontacthub,dc=local`, entries of the class inetOrgPerson; telephone numbers match in any notation (`+4930123`, `030123`, `004930123`).
+- `/api/provides/contacts.directory/lookup?number=` and `/search?q=&limit=` (also under `/api/directory/`): caller-ID and search for apps bound through the capability `contacts.directory` (a key per app, as a bearer token).
+- `/api`: the Mat platform contract (description, health, state, settings, actions, connections) for Mattiverse and other consumers.

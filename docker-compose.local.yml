@@ -1,0 +1,79 @@
+# MatContactHub - Local (builds the image from this folder) with pgAdmin
+#   ./scripts/redeploy.ps1              (rebuilds and starts the stack: the way to test every change)
+#   docker compose -f docker-compose.local.yml up -d --build
+#   App:      http://localhost:7087
+#   LDAP:     ldap://localhost:7389    (plain and StartTLS; the container listens on 10389)
+#   LDAPS:    ldaps://localhost:7636   (the container listens on 10636)
+#   pgAdmin:  http://localhost:7088   (no sign-in; database password: matcontacthub)
+#   Postgres: localhost:7089          (for "dotnet run" outside Docker and the tests: MATCONTACTHUB_TEST_DB, see CLAUDE.md)
+# Optional under "environment:" of web (comments only, nothing to set): MAT_PUBLIC_URL, MAT_API_KEY, MAT_FRAME_ANCESTORS, MATIDENTITY_*, MATSMTP_*
+# (see docker-compose.yml).
+name: matcontacthub-local
+
+services:
+  web:
+    build: .
+    image: matcontacthub:local
+    restart: unless-stopped
+    ports:
+      - "7087:7087"
+      - "7389:10389"
+      - "7636:10636"
+    volumes:
+      - web-data:/data
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    ports:
+      - "7089:5432"
+    environment:
+      POSTGRES_DB: matcontacthub
+      POSTGRES_USER: matcontacthub
+      POSTGRES_PASSWORD: matcontacthub
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U matcontacthub -d matcontacthub"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    restart: unless-stopped
+    ports:
+      - "7088:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@matcontacthub.example.com
+      PGADMIN_DEFAULT_PASSWORD: matcontacthub
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+    configs:
+      - source: servers
+        target: /pgadmin4/servers.json
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+    depends_on:
+      - db
+
+configs:
+  servers:
+    content: |
+      {"Servers": {"1": {"Name": "MatContactHub (local)", "Group": "Servers", "Host": "db", "Port": 5432, "MaintenanceDB": "matcontacthub", "Username": "matcontacthub", "SSLMode": "prefer"}}}
+
+volumes:
+  web-data:
+  db-data:
+  pgadmin-data:
+
+# A fixed subnet: on a machine with many stacks Docker runs out of address pools otherwise
+# ("all predefined address pools have been fully subnetted").
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 10.253.87.0/24

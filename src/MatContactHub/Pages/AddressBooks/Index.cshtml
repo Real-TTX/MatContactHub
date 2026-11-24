@@ -1,0 +1,50 @@
+@page "/AddressBooks"
+@model MatContactHub.Pages.AddressBooks.IndexModel
+@{
+    ViewData["Title"] = L["AddressBooks.Title"].Value;
+    ViewData["NavKey"] = "addressbooks";
+}
+
+<div class="mat-list">
+    @if (Model.Items.Count == 0)
+    {
+        <partial name="_Empty" model="@(new EmptyStateModel("book", L["AddressBooks.Empty"].Value, L[Model.IsAdmin ? "AddressBooks.Empty.Admin" : "AddressBooks.Empty.Text"].Value, Model.IsAdmin, "/AddressBooks/Edit", L["AddressBooks.New"].Value))" />
+    }
+    else
+    {
+        <md-table caption="@L["AddressBooks.Title"]">
+            <thead>
+                <tr><th scope="col">@L["Common.Name"]</th><th scope="col" class="mat-num">@L["Contacts.Title"]</th><th scope="col" class="mat-hide-sm">@L["AddressBooks.Col.Shared"]</th><th scope="col"><span class="mat-sr-only">@L["Common.Actions"]</span></th></tr>
+            </thead>
+            <tbody>
+                @foreach (var b in Model.Items)
+                {
+                    <tr>
+                        <td data-label="@L["Common.Name"]"><a class="md-name" href="/Contacts?book=@b.Id">@Ui.Icon("book", null, b.Color)<span>@b.Name</span></a>@if (!string.IsNullOrEmpty(b.Description)) { <small class="md-muted md-block-line">@b.Description</small> }</td>
+                        <td data-label="@L["Contacts.Title"]" class="mat-num mat-mono">@b.Contacts.ToString("N0")</td>
+                        <td data-label="@L["AddressBooks.Col.Shared"]" class="mat-hide-sm">
+                            <span class="md-pills">
+                                @if (b.IsShared) { <span class="mat-pill mat-pill--plain">@L["AddressBooks.Shared"]</span> }
+                                @if (b.LdapEnabled) { <span class="mat-pill mat-pill--accent">LDAP</span> }
+                                @if (b.AppsEnabled) { <span class="mat-pill mat-pill--plain">@L["AddressBooks.Apps"]</span> }
+                            </span>
+                        </td>
+                        <td class="mat-table__cell-actions">
+                            @if (Model.IsAdmin)
+                            {
+                                <div class="mat-table__actions"><a class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" href="/AddressBooks/Edit?id=@b.Id" aria-label="@L["Common.EditNamed", b.Name]" data-tip="@L["Common.Edit"]">@Ui.Icon("edit")</a></div>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </md-table>
+    }
+
+    @if (Model.IsAdmin)
+    {
+        <div class="mat-actions">
+            <a class="mat-btn mat-btn--primary" href="/AddressBooks/Edit">@Ui.Icon("plus")<span>@L["AddressBooks.New"]</span></a>
+        </div>
+    }
+</div>

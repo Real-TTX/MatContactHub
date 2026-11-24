@@ -1,0 +1,20 @@
+{
+  "Ldap.Title": { "en": "LDAP", "de": "LDAP" },
+  "Ldap.General": { "en": "LDAP server", "de": "LDAP-Server" },
+  "Ldap.Enabled": { "en": "LDAP server on", "de": "LDAP-Server an" },
+  "Ldap.StartTls": { "en": "StartTLS on the plain port", "de": "StartTLS auf dem einfachen Port" },
+  "Ldap.Ldaps": { "en": "LDAPS (encrypted port)", "de": "LDAPS (verschlüsselter Port)" },
+  "Ldap.BaseDn": { "en": "Base DN", "de": "Basis-DN" },
+  "Ldap.BaseDn.Invalid": { "en": "Please enter a base DN like dc=example,dc=com.", "de": "Bitte einen Basis-DN wie dc=example,dc=com eingeben." },
+  "Ldap.AllowAnonymous": { "en": "Anonymous searches", "de": "Anonyme Suchen" },
+  "Ldap.AllowAnonymous.Hint": { "en": "Off: every client binds with an LDAP account.", "de": "Aus: jeder Client meldet sich mit einem LDAP-Konto an." },
+  "Ldap.NumberFormat": { "en": "Format of the numbers", "de": "Format der Rufnummern" },
+  "Ldap.NumberFormat.AsStored": { "en": "As stored", "de": "Wie gespeichert" },
+  "Ldap.NumberFormat.E164": { "en": "International (+49301234567)", "de": "International (+49301234567)" },
+  "Ldap.NumberFormat.National": { "en": "National (030 1234567)", "de": "National (030 1234567)" },
+  "Ldap.NumberFormat.InternationalDigits": { "en": "Digits with 00 (0049301234567)", "de": "Ziffern mit 00 (0049301234567)" },
+  "Ldap.SizeLimit": { "en": "Most entries per search", "de": "Höchstens Einträge pro Suche" },
+  "Ldap.SizeLimit.Invalid": { "en": "Please enter 1 to 100000.", "de": "Bitte 1 bis 100000 eingeben." },
+  "Ldap.Ports": { "en": "Ports", "de": "Ports" },
+  "Ldap.Ports.Text": { "en": "The ports inside the container; the compose file maps them to 389 and 636 (release) or 7389 and 7636 (development).", "de": "Die Ports im Container; die Compose-Datei bildet sie auf 389 und 636 (Release) oder 7389 und 7636 (Entwicklung) ab." }
+}

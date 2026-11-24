@@ -1,0 +1,32 @@
+@page "/Duplicates"
+@model MatContactHub.Pages.Duplicates.IndexModel
+@{
+    ViewData["Title"] = L["Duplicates.Title"].Value;
+    ViewData["NavKey"] = "duplicates";
+}
+
+<div class="mat-list">
+    @if (Model.Groups.Count == 0)
+    {
+        <partial name="_Empty" model="@(new EmptyStateModel("check-circle", L["Duplicates.Empty"].Value, L["Duplicates.Empty.Text"].Value, true))" />
+    }
+    else
+    {
+        @foreach (var g in Model.Groups)
+        {
+            <md-table caption="@g.Key">
+                <thead><tr><th scope="col">@L["Common.Name"]</th><th scope="col" class="mat-hide-sm">@L["Contacts.Col.Company"]</th><th scope="col" class="mat-hide-sm">@L["Contacts.Col.AddressBook"]</th></tr></thead>
+                <tbody>
+                    @foreach (var c in g.Contacts)
+                    {
+                        <tr>
+                            <td data-label="@L["Common.Name"]"><a href="/Contacts/Edit?id=@c.Id">@c.DisplayName</a></td>
+                            <td data-label="@L["Contacts.Col.Company"]" class="mat-hide-sm">@c.Company</td>
+                            <td data-label="@L["Contacts.Col.AddressBook"]" class="mat-hide-sm">@c.AddressBook</td>
+                        </tr>
+                    }
+                </tbody>
+            </md-table>
+        }
+    }
+</div>

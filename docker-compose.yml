@@ -1,0 +1,48 @@
+# MatContactHub - Release (branch main, image :latest)
+#   docker compose up -d        ->  http://localhost:7087
+# The first account that registers is the administrator. Then Administration -> Data sources (REST, SQL Server, CSV) and LDAP.
+# Ports:
+#   7087                          the web interface (on another host put MatContactHub behind a TLS proxy)
+#   389                           LDAP (plain and StartTLS) for STARFACE, IP phones, mail clients: the container listens on 10389
+#   636                           LDAPS: the container listens on 10636 (a self-signed certificate, or upload a PFX under Administration -> LDAP)
+#   (389/636 are the standard ports; when another LDAP server holds them, map e.g. "7389:10389" and "7636:10636" instead)
+# No variable is needed: MatContactHub does its whole job without them. Mattiverse connects the rest by itself (see README); without it, these are optional
+# under "environment:" of web:
+#   MAT_PUBLIC_URL                public address (links in mails, the directory API); fixed on Administration -> System while set
+#   MAT_API_KEY                   the key of the platform API (/api) for a broker such as Mattiverse
+#   MAT_FRAME_ANCESTORS           origins that may show MatContactHub in a frame (Mattiverse)
+#   MATIDENTITY_*, MATSMTP_*      sign-in through MatIdentity, mail through MatSMTP
+name: matcontacthub
+
+services:
+  web:
+    image: ghcr.io/real-ttx/matcontacthub:latest
+    restart: unless-stopped
+    ports:
+      - "7087:7087"
+      - "389:10389"
+      - "636:10636"
+    volumes:
+      - web-data:/data
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: matcontacthub
+      POSTGRES_USER: matcontacthub
+      POSTGRES_PASSWORD: matcontacthub
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U matcontacthub -d matcontacthub"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  web-data:
+  db-data:

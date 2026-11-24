@@ -1,0 +1,9 @@
+# MatContactHub - only the start page is public. Every contact, address book and data source needs an account: they are personal data.
+User-agent: *
+Allow: /$
+Allow: /llms.txt
+Allow: /favicon.svg
+Allow: /img/
+Disallow: /
+
+# Information for language models: /llms.txt

@@ -1,0 +1,40 @@
+@page "/"
+@model MatContactHub.Pages.IndexModel
+@{
+    Layout = "_LayoutAuth";
+    ViewData["Title"] = Ui.AppName;
+    ViewData["Index"] = true;
+    ViewData["AuthClass"] = "md-landing";
+}
+
+<section class="md-hero">
+    @Ui.Logo("lg")
+    <h1>MatContactHub</h1>
+    <p class="md-hero__lead">@Html.Raw(L["Landing.Lead"].Value)</p>
+    <div class="mat-btn-row mat-btn-row--plain md-hero__actions">
+        @if (Model.RegistrationOpen)
+        {
+            <a class="mat-btn mat-btn--primary mat-btn--lg" href="/Account/Register">@Ui.Icon("rocket")<span>@L["Landing.Register"]</span></a>
+        }
+        <a class="mat-btn mat-btn--secondary mat-btn--lg" href="/Account/Login">@Ui.Icon("login")<span>@L["Account.Login.Title"]</span></a>
+    </div>
+</section>
+
+<section class="md-features" aria-label="@L["Landing.Features"]">
+    <div class="mat-card"><div class="mat-card__body">
+        <h2>@Ui.Icon("users")@L["Landing.Contacts.Title"]</h2>
+        <p>@L["Landing.Contacts.Text"]</p>
+    </div></div>
+    <div class="mat-card"><div class="mat-card__body">
+        <h2>@Ui.Icon("database")@L["Landing.Sources.Title"]</h2>
+        <p>@L["Landing.Sources.Text"]</p>
+    </div></div>
+    <div class="mat-card"><div class="mat-card__body">
+        <h2>@Ui.Icon("server")@L["Landing.Ldap.Title"]</h2>
+        <p>@L["Landing.Ldap.Text"]</p>
+    </div></div>
+    <div class="mat-card"><div class="mat-card__body">
+        <h2>@Ui.Icon("copy")@L["Landing.Duplicates.Title"]</h2>
+        <p>@L["Landing.Duplicates.Text"]</p>
+    </div></div>
+</section>
