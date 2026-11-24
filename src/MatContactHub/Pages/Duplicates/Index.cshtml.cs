@@ -2,16 +2,18 @@ using MatContactHub.Data;
 using MatContactHub.Localization;
 using MatContactHub.Services;
 using MatContactHub.Services.Contacts;
+using Microsoft.AspNetCore.Mvc;
 
 namespace MatContactHub.Pages.Duplicates;
 
 /// <summary>
-/// The duplicates among the contacts the person may see (module C owns it; FOUNDATION PLACEHOLDER: the groups with search, the filter reason, sort and pager;
-/// Merge and Not a duplicate follow). The page filters the groups of <see cref="DuplicateService.FindAsync"/> in memory.
+/// The duplicates among the contacts the person may see (module C): the groups of <see cref="DuplicateService.FindAsync"/> with search, the filter "the same" (number,
+/// e-mail address, name and company), sort and pager. Each group is merged into the contact chosen to keep, or marked "not a duplicate"; both need the role
+/// Editor in every address book of the group. The page filters the groups in memory (they are few compared with the contacts).
 /// </summary>
 public sealed class IndexModel(AppDbContext db) : AppPageModel
 {
-    private const int PageSize = 25;
+    private const int PageSize = 20;
 
     public ToolbarModel Toolbar { get; private set; } = null!;
 
@@ -23,28 +25,29 @@ public sealed class IndexModel(AppDbContext db) : AppPageModel
     {
         var search = ListQuery.Text(Request, "q");
         var reason = Enum.TryParse<DuplicateReason>(ListQuery.Text(Request, "reason"), out var r) && Enum.IsDefined(r) ? r : (DuplicateReason?)null;
-        var sort = ListQuery.Text(Request, "sort") ?? "key";
-        var desc = ListQuery.Descending(Request);
+        var sort = ListQuery.Text(Request, "sort") ?? "size";
+        var desc = ListQuery.Descending(Request, sort == "size");
         var page = ListQuery.Page(Request);
         var all = await DuplicateService.FindAsync(db, Actor.ForUser(Me), HttpContext.RequestAborted);
 
         IEnumerable<DuplicateGroup> query = all;
         if (search is not null)
         {
-            query = query.Where(g => Has(g.Key, search) || g.Contacts.Any(c => Has(c.DisplayName, search) || Has(c.Company, search) || Has(c.Email, search) || Has(c.Phone, search)));
+            query = query.Where(g => g.Matches.Any(m => Has(m.Value, search))
+                || g.Contacts.Any(c => Has(c.DisplayName, search) || Has(c.Company, search) || Has(c.Email, search) || Has(c.Phone, search)));
         }
 
-        if (reason is not null)
+        if (reason is { } wanted)
         {
-            query = query.Where(g => g.Reason == reason);
+            query = query.Where(g => g.Reasons.Contains(wanted));
         }
 
         query = (sort, desc) switch
         {
-            ("size", false) => query.OrderBy(g => g.Contacts.Count).ThenBy(g => g.Key, StringComparer.CurrentCultureIgnoreCase),
-            ("size", true) => query.OrderByDescending(g => g.Contacts.Count).ThenBy(g => g.Key, StringComparer.CurrentCultureIgnoreCase),
-            (_, true) => query.OrderByDescending(g => g.Key, StringComparer.CurrentCultureIgnoreCase),
-            _ => query.OrderBy(g => g.Key, StringComparer.CurrentCultureIgnoreCase),
+            ("size", false) => query.OrderBy(g => g.Contacts.Count).ThenBy(g => g.Label, StringComparer.CurrentCultureIgnoreCase),
+            ("size", true) => query.OrderByDescending(g => g.Contacts.Count).ThenBy(g => g.Label, StringComparer.CurrentCultureIgnoreCase),
+            (_, true) => query.OrderByDescending(g => g.Label, StringComparer.CurrentCultureIgnoreCase),
+            _ => query.OrderBy(g => g.Label, StringComparer.CurrentCultureIgnoreCase),
         };
 
         var matching = query.ToList();
@@ -62,16 +65,59 @@ public sealed class IndexModel(AppDbContext db) : AppPageModel
                 new FilterField("reason", Text.T("Duplicates.Reason"), [.. Enum.GetValues<DuplicateReason>().Select(x => new FilterOption(x.ToString(), Text.T("Duplicates.Reason." + x)))],
                     reason?.ToString()),
             ],
-            SortOptions = [new("key", Text.T("Duplicates.Sort.Key")), new("size", Text.T("Duplicates.Sort.Size"))],
+            SortOptions = [new("size", Text.T("Duplicates.Sort.Size")), new("key", Text.T("Duplicates.Sort.Key"))],
             Sort = sort,
             Descending = desc,
-            DefaultSort = "key",
+            DefaultSort = "size",
+            DefaultDescending = true,
             Total = all.Count,
             Matching = matching.Count,
             Noun = Text.T("Duplicates.Many"),
             NounOne = Text.T("Duplicates.One"),
         };
         Pager = new PagerModel { Page = page, PageSize = PageSize, Total = matching.Count, Url = Toolbar.UrlWithPage };
+    }
+
+    /// <summary>Merges the contacts of a group into the one chosen to keep.</summary>
+    public async Task<IActionResult> OnPostMergeAsync([FromForm] long keep, [FromForm] long[] ids, [FromForm] string? returnUrl)
+    {
+        var merged = await DuplicateService.MergeAsync(db, Actor.ForUser(Me), keep, ids, HttpContext.RequestAborted);
+        if (merged.NotAllowed)
+        {
+            return NotFound();
+        }
+
+        if (merged.Ok)
+        {
+            Flash(Text.T("Duplicates.Merged", ids.Count(id => id != keep)));
+        }
+        else
+        {
+            FlashError(merged.Error!);
+        }
+
+        return Back(returnUrl, "/Duplicates");
+    }
+
+    /// <summary>Marks the contacts of a group as "not a duplicate" of each other.</summary>
+    public async Task<IActionResult> OnPostIgnoreAsync([FromForm] long[] ids, [FromForm] string? returnUrl)
+    {
+        var ignored = await DuplicateService.IgnoreAsync(db, Actor.ForUser(Me), ids, HttpContext.RequestAborted);
+        if (ignored.NotAllowed)
+        {
+            return NotFound();
+        }
+
+        if (ignored.Ok)
+        {
+            Flash(Text.T("Duplicates.Ignored"));
+        }
+        else
+        {
+            FlashError(ignored.Error!);
+        }
+
+        return Back(returnUrl, "/Duplicates");
     }
 
     private static bool Has(string? value, string search) => value?.Contains(search, StringComparison.CurrentCultureIgnoreCase) == true;

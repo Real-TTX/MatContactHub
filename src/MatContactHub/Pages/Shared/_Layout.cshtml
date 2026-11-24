@@ -112,11 +112,11 @@
                         }
                     </ol>
                 </nav>
-                @* the search of the contacts (SHELL-20): the list of the contacts is the page of the results (module C adds the suggestions while typing) *@
+                @* the search of the contacts (SHELL-20, FORM-23): suggestions while typing (Contacts?handler=Suggest), Enter or "All results" opens the list of the contacts *@
                 <div class="mat-topbar__search">
                     <form role="search" action="/Contacts" method="get">
                         <label class="mat-sr-only" for="md-search">@L["Search.Label"]</label>
-                        <div class="mat-search" data-key="/,mod+k">
+                        <div class="mat-search" data-autocomplete data-search-url="/Contacts?handler=Suggest" data-results-url="/Contacts" data-min="2" data-limit="8" data-key="/,mod+k">
                             <input class="mat-search__input" type="search" id="md-search" name="q" placeholder="@L["Search.Placeholder"]" value="@(ViewData["SearchText"] as string)" />
                         </div>
                     </form>

@@ -4,17 +4,30 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MatContactHub.Services.Contacts;
 
-/// <summary>A line of the list of address books.</summary>
+/// <summary>A line of the list of address books (<see cref="Sources"/>: the data sources that write into it; <see cref="People"/>: the people with a role in it).</summary>
 public sealed record AddressBookRow(long Id, string Name, string? Description, string LdapName, bool LdapEnabled, bool AppsEnabled, bool IsShared, string? Color,
-    int Contacts, AddressBookRole Role);
+    int Contacts, AddressBookRole Role, int Sources = 0, int People = 0);
 
-/// <summary>What the edit page of an address book shows and sends.</summary>
-public sealed record AddressBookForm(string Name, string? Description, string LdapName, bool LdapEnabled, bool AppsEnabled, bool IsShared, string? Color, int SortOrder);
+/// <summary>The role of one person in an address book (what the tab Access sends).</summary>
+public sealed record AddressBookAccessEntry(long UserId, AddressBookRole Role);
 
 /// <summary>
-/// The address books and THE check of what an actor may do in them (module C owns this class; FOUNDATION STUB: the list, the check, a simple save and delete;
-/// the Access tab and the LDAP and apps tab follow). An administrator may do everything; a person has the role of <see cref="AddressBookAccess"/>, a shared address book
-/// makes everybody a viewer; an app bound through <c>contacts.directory</c> (<see cref="Actor.Consumer"/>) reads the address books with <c>AppsEnabled</c>.
+/// What the edit page of an address book shows and sends. <see cref="Access"/> null leaves the roles as they are (a caller without the tab Access); a list replaces
+/// them (a person not in it loses the role).
+/// </summary>
+public sealed record AddressBookForm(string Name, string? Description, string LdapName, bool LdapEnabled, bool AppsEnabled, bool IsShared, string? Color, int SortOrder,
+    IReadOnlyList<AddressBookAccessEntry>? Access = null);
+
+/// <summary>A person with a role in an address book, for the tab Access.</summary>
+public sealed record AddressBookPerson(long UserId, string DisplayName, string Email, AddressBookRole Role, bool IsAdmin);
+
+/// <summary>What the edit page shows beside the form: the contacts (manual and synced), the data sources that write into it, the people with a role.</summary>
+public sealed record AddressBookFacts(int ManualContacts, int SyncedContacts, IReadOnlyList<string> Sources, IReadOnlyList<AddressBookPerson> People);
+
+/// <summary>
+/// The address books and THE check of what an actor may do in them (module C owns this class). An administrator may do everything; a person has the role of
+/// <see cref="AddressBookAccess"/>, a shared address book makes everybody a viewer; an app bound through <c>contacts.directory</c> (<see cref="Actor.Consumer"/>) reads
+/// the address books with <c>AppsEnabled</c>. Only administrators create, change and delete address books and give roles.
 /// What may not be seen answers like what is not there (null / <see cref="Outcome{T}.Denied"/>).
 /// </summary>
 public static class AddressBookService
@@ -38,7 +51,9 @@ public static class AddressBookService
         }
 
         var roles = await db.AddressBooks.AsNoTracking().Where(a => a.IsShared).Select(a => a.Id).ToDictionaryAsync(id => id, _ => AddressBookRole.Viewer, ct);
-        foreach (var access in await db.AddressBookAccess.AsNoTracking().Where(a => a.UserId == userId).Select(a => new { a.AddressBookId, a.Role }).ToListAsync(ct))
+        // the roles in address books that exist (a deleted one keeps its rows, softly)
+        foreach (var access in await db.AddressBookAccess.AsNoTracking().Where(a => a.UserId == userId && db.AddressBooks.Any(b => b.Id == a.AddressBookId))
+                     .Select(a => new { a.AddressBookId, a.Role }).ToListAsync(ct))
         {
             if (!roles.TryGetValue(access.AddressBookId, out var role) || access.Role > role)
             {
@@ -59,12 +74,26 @@ public static class AddressBookService
         var roles = await RolesAsync(db, actor, ct);
         var ids = roles.Keys.ToList();
         var rows = await db.AddressBooks.AsNoTracking().Where(a => ids.Contains(a.Id)).OrderBy(a => a.SortOrder).ThenBy(a => a.Name)
-            .Select(a => new { a.Id, a.Name, a.Description, a.LdapName, a.LdapEnabled, a.AppsEnabled, a.IsShared, a.Color, Contacts = db.Contacts.Count(c => c.AddressBookId == a.Id) })
+            .Select(a => new
+            {
+                a.Id,
+                a.Name,
+                a.Description,
+                a.LdapName,
+                a.LdapEnabled,
+                a.AppsEnabled,
+                a.IsShared,
+                a.Color,
+                Contacts = db.Contacts.Count(c => c.AddressBookId == a.Id),
+                Sources = db.DataSources.Count(s => s.AddressBookId == a.Id),
+                People = db.AddressBookAccess.Count(x => x.AddressBookId == a.Id),
+            })
             .ToListAsync(ct);
-        return [.. rows.Select(a => new AddressBookRow(a.Id, a.Name, a.Description, a.LdapName, a.LdapEnabled, a.AppsEnabled, a.IsShared, a.Color, a.Contacts, roles[a.Id]))];
+        return [.. rows.Select(a => new AddressBookRow(a.Id, a.Name, a.Description, a.LdapName, a.LdapEnabled, a.AppsEnabled, a.IsShared, a.Color, a.Contacts, roles[a.Id],
+            a.Sources, a.People))];
     }
 
-    /// <summary>The form of an address book (administrators only; null for anybody else or when it does not exist).</summary>
+    /// <summary>The form of an address book with its roles (administrators only; null for anybody else or when it does not exist).</summary>
     public static async Task<AddressBookForm?> GetAsync(AppDbContext db, Actor actor, long id, CancellationToken ct = default)
     {
         if (!actor.IsAdmin)
@@ -72,9 +101,46 @@ public static class AddressBookService
             return null;
         }
 
-        return await db.AddressBooks.AsNoTracking().Where(a => a.Id == id)
-            .Select(a => new AddressBookForm(a.Name, a.Description, a.LdapName, a.LdapEnabled, a.AppsEnabled, a.IsShared, a.Color, a.SortOrder))
+        var form = await db.AddressBooks.AsNoTracking().Where(a => a.Id == id)
+            .Select(a => new AddressBookForm(a.Name, a.Description, a.LdapName, a.LdapEnabled, a.AppsEnabled, a.IsShared, a.Color, a.SortOrder, null))
             .FirstOrDefaultAsync(ct);
+        if (form is null)
+        {
+            return null;
+        }
+
+        var access = await db.AddressBookAccess.AsNoTracking().Where(x => x.AddressBookId == id).OrderBy(x => x.UserId)
+            .Select(x => new AddressBookAccessEntry(x.UserId, x.Role)).ToListAsync(ct);
+        return form with { Access = access };
+    }
+
+    /// <summary>What the edit page shows beside the form (administrators only; null for anybody else or when it does not exist).</summary>
+    public static async Task<AddressBookFacts?> FactsAsync(AppDbContext db, Actor actor, long id, CancellationToken ct = default)
+    {
+        if (!actor.IsAdmin || !await db.AddressBooks.AnyAsync(a => a.Id == id, ct))
+        {
+            return null;
+        }
+
+        var manual = await db.Contacts.CountAsync(c => c.AddressBookId == id && c.DataSourceId == null, ct);
+        var synced = await db.Contacts.CountAsync(c => c.AddressBookId == id && c.DataSourceId != null, ct);
+        var sources = await db.DataSources.AsNoTracking().Where(s => s.AddressBookId == id).OrderBy(s => s.Name).Select(s => s.Name).ToListAsync(ct);
+        var people = await db.AddressBookAccess.AsNoTracking().Where(x => x.AddressBookId == id && x.User != null)
+            .Select(x => new { x.UserId, x.User!.DisplayName, x.User.Email, x.Role, IsAdmin = x.User.Role == UserRole.Admin })
+            .OrderBy(p => p.DisplayName).ToListAsync(ct);
+        return new AddressBookFacts(manual, synced, sources, [.. people.Select(p => new AddressBookPerson(p.UserId, p.DisplayName, p.Email, p.Role, p.IsAdmin))]);
+    }
+
+    /// <summary>The people who can be given a role (administrators only): every active account, by name.</summary>
+    public static async Task<IReadOnlyList<AddressBookPerson>> PeopleAsync(AppDbContext db, Actor actor, CancellationToken ct = default)
+    {
+        if (!actor.IsAdmin)
+        {
+            return [];
+        }
+
+        return await db.Users.AsNoTracking().Where(u => u.IsActive).OrderBy(u => u.DisplayName)
+            .Select(u => new AddressBookPerson(u.Id, u.DisplayName, u.Email, AddressBookRole.None, u.Role == UserRole.Admin)).ToListAsync(ct);
     }
 
     /// <summary>Creates (<paramref name="id"/> null) or changes an address book; administrators only. Answers its id.</summary>
@@ -131,33 +197,93 @@ public static class AddressBookService
         }
 
         book.SortOrder = form.SortOrder;
+        if (form.Access is { } access)
+        {
+            if (await ApplyAccessAsync(db, book, access, ct) is { } error)
+            {
+                return Outcome<long>.Fail(error);
+            }
+        }
+
         await db.SaveChangesAsync(ct);
         await ActivityLog.AddAsync(db, actor, "addressbook", book.Name, id is null ? "created" : "changed", book.Id, ct);
         return Outcome<long>.Success(book.Id);
     }
 
-    /// <summary>Deletes an address book (softly) with its contacts; administrators only. Refused while a data source writes into it.</summary>
-    public static async Task<Outcome<bool>> DeleteAsync(AppDbContext db, Actor actor, long id, CancellationToken ct = default)
+    /// <summary>
+    /// Deletes an address book (softly) with its contacts; administrators only. Refused while a data source writes into it (its synced contacts would come back
+    /// with nowhere to go): delete the data source or point it elsewhere first. Answers how many contacts went with it.
+    /// </summary>
+    public static async Task<Outcome<int>> DeleteAsync(AppDbContext db, Actor actor, long id, CancellationToken ct = default)
     {
         if (!actor.IsAdmin || await db.AddressBooks.FirstOrDefaultAsync(a => a.Id == id, ct) is not { } book)
         {
-            return Outcome<bool>.Denied();
+            return Outcome<int>.Denied();
         }
 
         if (await db.DataSources.AnyAsync(s => s.AddressBookId == id, ct))
         {
-            return Outcome<bool>.Fail(Text.T("AddressBooks.Delete.HasSources"));
+            return Outcome<int>.Fail(Text.T("AddressBooks.Delete.HasSources"));
         }
 
-        db.AddressBooks.Remove(book);
-        foreach (var contact in await db.Contacts.Where(c => c.AddressBookId == id).ToListAsync(ct))
+        // the contacts in one statement (an address book may hold thousands), the address book after them, both or neither
+        int contacts;
+        await using (var tx = await db.Database.BeginTransactionAsync(ct))
         {
-            db.Contacts.Remove(contact);
+            contacts = await db.Contacts.Where(c => c.AddressBookId == id).ExecuteUpdateAsync(s => s
+                .SetProperty(c => c.UpdateState, SoftEntity.Deleted)
+                .SetProperty(c => c.UpdateDate, DateTime.UtcNow)
+                .SetProperty(c => c.UpdateUserId, actor.UserId), ct);
+            book.UpdateState = SoftEntity.Deleted;
+            await db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
         }
 
-        await db.SaveChangesAsync(ct);
-        await ActivityLog.AddAsync(db, actor, "addressbook", book.Name, "deleted", book.Id, ct);
-        return Outcome<bool>.Success(true);
+        DirectoryChanges.Bump();
+        await ActivityLog.AddAsync(db, actor, "addressbook", book.Name, Text.T("AddressBooks.Deleted.Log", contacts), book.Id, ct);
+        return Outcome<int>.Success(contacts);
+    }
+
+    /// <summary>Makes the roles of <paramref name="book"/> what <paramref name="access"/> says (unsaved); answers the message of a wrong entry, else null.</summary>
+    private static async Task<string?> ApplyAccessAsync(AppDbContext db, AddressBook book, IReadOnlyList<AddressBookAccessEntry> access, CancellationToken ct)
+    {
+        var wanted = new Dictionary<long, AddressBookRole>();
+        foreach (var entry in access)
+        {
+            if (entry.Role is not (AddressBookRole.Viewer or AddressBookRole.Editor))
+            {
+                continue;
+            }
+
+            wanted[entry.UserId] = entry.Role;
+        }
+
+        var ids = wanted.Keys.ToList();
+        if (await db.Users.CountAsync(u => ids.Contains(u.Id), ct) != ids.Count)
+        {
+            return Text.T("AddressBooks.Access.Unknown");
+        }
+
+        var existing = book.Id == 0 ? [] : await db.AddressBookAccess.Where(x => x.AddressBookId == book.Id).ToListAsync(ct);
+        foreach (var row in existing)
+        {
+            if (wanted.TryGetValue(row.UserId, out var role))
+            {
+                row.Role = role;
+                wanted.Remove(row.UserId);
+            }
+            else
+            {
+                db.AddressBookAccess.Remove(row);
+            }
+        }
+
+        foreach (var (userId, role) in wanted)
+        {
+            db.AddressBookAccess.Add(new AddressBookAccess { AddressBook = book, UserId = userId, Role = role });
+        }
+
+        return null;
     }
 
     /// <summary>An LDAP name made from a name: small letters, digits and <c>-</c> (<c>Kunden &amp; Partner</c> → <c>kunden-partner</c>).</summary>

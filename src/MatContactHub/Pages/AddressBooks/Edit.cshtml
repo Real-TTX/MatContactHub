@@ -1,25 +1,136 @@
 @page "/AddressBooks/Edit"
 @model MatContactHub.Pages.AddressBooks.EditModel
 @{
-    ViewData["Title"] = Model.IsNew ? L["AddressBooks.New"].Value : Model.Name;
-    ViewData["Crumbs"] = new List<(string, string?)> { (L["AddressBooks.Title"].Value, "/AddressBooks"), (Model.IsNew ? L["Common.New"].Value : Model.Name, null) };
+    ViewData["Title"] = Model.Title;
+    ViewData["Crumbs"] = new List<(string, string?)> { (L["AddressBooks.Title"].Value, "/AddressBooks"), (Model.IsNew ? L["Common.New"].Value : Model.Title, null) };
     ViewData["NavKey"] = "addressbooks";
-    ViewData["Width"] = "narrow";
+    var facts = Model.Facts;
+    var removeUrl = MatContactHub.Controls.ButtonRowTagHelper.HandlerUrl(HttpContext.Request, "RemoveAccess");
+    var addUrl = MatContactHub.Controls.ButtonRowTagHelper.HandlerUrl(HttpContext.Request, "AddAccess");
+    var deleteConfirm = facts is null ? string.Empty
+        : facts.Sources.Count > 0 ? L["AddressBooks.DeleteConfirm.Sources", Model.Title, string.Join(", ", facts.Sources)].Value
+        : L["AddressBooks.DeleteConfirm", Model.Title, facts.ManualContacts + facts.SyncedContacts].Value;
 }
 
 <form class="mat-form" method="post" novalidate>
+    <input type="hidden" name="Tab" value="@Model.Tab" data-panel-tab />
     <partial name="_FormSummary" model="ViewData.ModelState" />
-    <div class="mat-card">
-        <div class="mat-card__body mat-form">
-            <md-field name="Name" label="@L["Common.Name"]" required value="@Model.Name" maxlength="120" />
-            <md-field name="Description" kind="textarea" label="@L["AddressBooks.Description"]" value="@Model.Description" maxlength="1000" optional rows="2" />
-            <md-field name="IsShared" kind="switch" label="@L["AddressBooks.Shared"]" value="@Model.IsShared.ToString()" hint="@L["AddressBooks.Shared.Hint"]" />
-            <md-field name="LdapEnabled" kind="switch" label="@L["AddressBooks.LdapEnabled"]" value="@Model.LdapEnabled.ToString()" />
-            <md-field name="LdapName" label="@L["AddressBooks.LdapName"]" value="@Model.LdapName" maxlength="64" optional mono hint="@L["AddressBooks.LdapName.Hint"]" />
-            <md-field name="AppsEnabled" kind="switch" label="@L["AddressBooks.Apps"]" value="@Model.AppsEnabled.ToString()" hint="@L["AddressBooks.Apps.Hint"]" />
-            <md-field name="Color" kind="colour" label="@L["Common.Color"]" value="@Model.Color" optional picker="clearable" hint="@L["AddressBooks.Color.Hint"]" />
-            <md-field name="SortOrder" kind="number" label="@L["AddressBooks.SortOrder"]" value="@Model.SortOrder" inputmode="numeric" />
-        </div>
-    </div>
-    <md-buttons save="@L["Common.Save"]" back="/AddressBooks" delete-handler="@(Model.IsNew ? null : "Delete")" delete-confirm="@L["AddressBooks.DeleteConfirm", Model.Name]" />
+
+    <md-panels id="book" label="@L["AddressBooks.Tabs"]" active="@Model.Tab">
+        <md-panel key="general" title="@L["AddressBooks.Tab.General"]" icon="book">
+            <div class="mat-cols">
+                <div class="mat-col-12 mat-col-lg-7">
+                    <div class="mat-card"><div class="mat-card__body mat-form">
+                        <md-field name="Name" label="@L["Common.Name"]" required value="@Model.Name" maxlength="120" msg-required="@L["AddressBooks.Name.Invalid"]" autocomplete="off" />
+                        <md-field name="Description" kind="textarea" label="@L["AddressBooks.Description"]" value="@Model.Description" maxlength="1000" optional rows="2" />
+                        <md-field name="Color" kind="colour" label="@L["Common.Color"]" value="@Model.Color" optional picker="clearable" hint="@L["AddressBooks.Color.Hint"]" />
+                        <md-field name="SortOrder" kind="number" label="@L["AddressBooks.SortOrder"]" value="@Model.SortOrder" inputmode="numeric" hint="@L["AddressBooks.SortOrder.Hint"]" />
+                    </div></div>
+                </div>
+                @if (facts is not null)
+                {
+                    <div class="mat-col-12 mat-col-lg-5">
+                        <div class="mat-card">
+                            <div class="mat-card__head"><h2 class="mat-card__title">@Ui.Icon("info")@L["AddressBooks.Facts"]</h2></div>
+                            <div class="mat-card__body">
+                                <dl class="mat-kv">
+                                    <dt>@L["Contacts.Origin.Manual"]</dt><dd><a href="/Contacts?book=@Model.Id&amp;origin=manual">@facts.ManualContacts.ToString("N0")</a></dd>
+                                    <dt>@L["Contacts.Origin.Synced"]</dt><dd><a href="/Contacts?book=@Model.Id&amp;origin=synced">@facts.SyncedContacts.ToString("N0")</a></dd>
+                                    <dt>@L["AddressBooks.Sources"]</dt><dd>@(facts.Sources.Count == 0 ? L["AddressBooks.Sources.None"].Value : string.Join(", ", facts.Sources))</dd>
+                                </dl>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </md-panel>
+
+        <md-panel key="access" title="@L["AddressBooks.Tab.Access"]" icon="users">
+            <div class="mat-card"><div class="mat-card__body mat-form">
+                <md-field name="IsShared" kind="switch" label="@L["AddressBooks.IsShared"]" value="@Model.IsShared.ToString()" hint="@L["AddressBooks.Shared.Hint"]" />
+                <p class="mat-hint">@L["AddressBooks.Access.Hint"]</p>
+            </div></div>
+
+            <section class="md-section md-mt">
+                <h2 class="md-section__title">@Ui.Icon("user")@L["AddressBooks.Access.People"]</h2>
+                @if (Model.Access.Count == 0)
+                {
+                    <div class="mat-empty mat-empty--framed"><span class="mat-empty__icon">@Ui.Icon("users")</span><div class="mat-empty__title">@L["AddressBooks.Access.Empty"]</div><p>@L[Model.IsShared ? "AddressBooks.Access.Empty.Shared" : "AddressBooks.Access.Empty.Text"]</p></div>
+                }
+                else
+                {
+                    <md-table caption="@L["AddressBooks.Access.People"]">
+                        <thead><tr><th scope="col">@L["Common.Name"]</th><th scope="col">@L["AddressBooks.Access.Role"]</th><th scope="col"><span class="mat-sr-only">@L["Common.Actions"]</span></th></tr></thead>
+                        <tbody>
+                            @for (var i = 0; i < Model.Access.Count; i++)
+                            {
+                                var a = Model.Access[i];
+                                var person = Model.PersonOf(a.UserId);
+                                var name = person?.DisplayName ?? "#" + a.UserId;
+                                <tr>
+                                    <td data-label="@L["Common.Name"]">
+                                        <input type="hidden" name="Access[@i].UserId" value="@a.UserId" />
+                                        <div class="mat-table__name"><span class="mat-avatar mat-avatar--sm" aria-hidden="true">@Ui.Initials(name)</span><span>@name@if (person is not null) { <small>@person.Email</small> }</span></div>
+                                    </td>
+                                    <td data-label="@L["AddressBooks.Access.Role"]">
+                                        <fieldset class="mat-fieldset md-role">
+                                            <legend class="mat-sr-only">@L["AddressBooks.Access.RoleOf", name]</legend>
+                                            <div class="mat-options">
+                                                <label class="mat-option"><input type="radio" id="Access_@(i)_Viewer" name="Access[@i].Role" value="Viewer" checked="@(a.Role != AddressBookRole.Editor)" /><span>@L["AddressBooks.Role.Viewer"]</span></label>
+                                                <label class="mat-option"><input type="radio" id="Access_@(i)_Editor" name="Access[@i].Role" value="Editor" checked="@(a.Role == AddressBookRole.Editor)" /><span>@L["AddressBooks.Role.Editor"]</span></label>
+                                            </div>
+                                        </fieldset>
+                                    </td>
+                                    <td class="mat-table__cell-actions">
+                                        <div class="mat-table__actions">
+                                            <button type="submit" class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" formaction="@removeUrl&amp;userId=@a.UserId" formnovalidate aria-label="@L["AddressBooks.Access.Remove", name]" data-tip="@L["AddressBooks.Access.RemoveShort"]">@Ui.Icon("x")</button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </md-table>
+                }
+
+                @if (Model.Candidates.Any())
+                {
+                    @* add a person in one line: who, which role, Add (saves the form and stays on this tab) *@
+                    <div class="md-add-line">
+                        <md-field name="NewUserId" kind="select" label="@L["AddressBooks.Access.Add.Person"]" options="Model.Candidates" placeholder="@L["AddressBooks.Access.Add.Choose"]" picker="search" />
+                        <fieldset class="mat-field mat-fieldset">
+                            <legend class="mat-label">@L["AddressBooks.Access.Role"]</legend>
+                            <div class="mat-options">
+                                <label class="mat-option"><input type="radio" id="NewRole_Viewer" name="NewRole" value="Viewer" checked /><span>@L["AddressBooks.Role.Viewer"]</span></label>
+                                <label class="mat-option"><input type="radio" id="NewRole_Editor" name="NewRole" value="Editor" /><span>@L["AddressBooks.Role.Editor"]</span></label>
+                            </div>
+                        </fieldset>
+                        <button type="submit" class="mat-btn mat-btn--secondary" formaction="@addUrl">@Ui.Icon("plus")<span>@L["AddressBooks.Access.Add"]</span></button>
+                    </div>
+                }
+            </section>
+        </md-panel>
+
+        <md-panel key="ldap" title="@L["AddressBooks.Tab.Ldap"]" icon="network">
+            <div class="mat-card"><div class="mat-card__body mat-form">
+                @if (!Model.LdapServerEnabled)
+                {
+                    <div class="mat-alert mat-alert--info" role="status">@Ui.Icon("info")<div class="mat-alert__body">@L["AddressBooks.Ldap.ServerOff"]</div></div>
+                }
+                <md-field name="LdapEnabled" kind="switch" label="@L["AddressBooks.LdapEnabled"]" value="@Model.LdapEnabled.ToString()" hint="@L["AddressBooks.LdapEnabled.Hint"]" />
+                <md-field name="LdapName" label="@L["AddressBooks.LdapName"]" value="@Model.LdapName" maxlength="64" optional mono autocomplete="off" hint="@L["AddressBooks.LdapName.Hint"]" show-if="#LdapEnabled" show-value="true" />
+                <div class="mat-field" data-show-if="#LdapEnabled" data-show-value="true">
+                    <span class="mat-label">@L["AddressBooks.Dn"]</span>
+                    <code class="mat-mono md-path md-dn" data-dn-preview data-ldap-field="LdapName" data-name-field="Name" data-base-dn="@Model.BaseDn">ou=@(string.IsNullOrWhiteSpace(Model.LdapName) ? AddressBookService.LdapNameOf(Model.Name) : Model.LdapName),@Model.BaseDn</code>
+                    <span class="mat-hint">@L["AddressBooks.Dn.Hint"]</span>
+                </div>
+                <md-field name="AppsEnabled" kind="switch" label="@L["AddressBooks.AppsEnabled"]" value="@Model.AppsEnabled.ToString()" hint="@L["AddressBooks.Apps.Hint"]" />
+            </div></div>
+        </md-panel>
+    </md-panels>
+
+    <md-buttons save="@L["Common.Save"]" back="/AddressBooks" delete-handler="@(Model.IsNew ? null : "Delete")" delete-confirm="@deleteConfirm" />
 </form>
+
+@section Scripts {
+    <script src="~/js/contacts.js" asp-append-version="true"></script>
+}

@@ -109,3 +109,56 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 
 /* a placeholder of the foundation: what a module still builds */
 .md-placeholder { color: var(--mat-text-muted); }
+
+/* ---- Contacts ------------------------------------------------------------------------------------------------------ */
+/* Module C: the list of the contacts, a contact, the address books, the duplicates, the import. */
+
+/* the avatar of a contact in the colour of its address book (data-colour: the toolkit writes it into --mat-swatch): a tint of the colour with the initials in a
+   deeper shade of it, readable in both themes; without a colour the toolkit's avatar */
+.md-avatar.is-coloured {
+  background: color-mix(in srgb, var(--mat-swatch) 24%, var(--mat-surface));
+  color: color-mix(in srgb, var(--mat-swatch) 55%, var(--mat-text));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mat-swatch) 45%, transparent);
+}
+
+/* a name with what is under it (job, department, the pills synced and hidden) */
+.md-contact-name { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; }
+.md-contact-name > small { font-weight: 400; }
+.md-row-hidden .md-contact-name > a { color: var(--mat-text-muted); }
+.md-pills .mat-pill { gap: var(--mat-space-1); }
+.md-pills .mat-pill > .mat-icon { width: 12px; height: 12px; }
+.md-pills .mat-pill:has(> .mat-icon)::before, .md-pills .mat-pill:has(> .mat-dot)::before { content: none; }
+
+/* the numbers of a row: the first one, the mobile below it with its icon */
+.md-numbers { display: inline-flex; flex-direction: column; gap: 2px; }
+.md-number { display: inline-flex; align-items: center; gap: var(--mat-space-1); }
+.md-number > .mat-icon { width: 14px; height: 14px; color: var(--mat-text-muted); }
+.md-book { display: inline-flex; align-items: center; gap: var(--mat-space-2); }
+
+/* the actions of the ticked rows: under the pager (LIST-05 keeps the pager directly under the table), positive to negative, Delete after a space */
+.mat-list > .md-bulk { order: 4; }
+.md-bulk > * { order: 1; }
+.md-bulk > .mat-btn-row__spacer { order: 2; }
+.md-bulk > .mat-btn--danger { order: 3; }
+.md-bulk .mat-bulk__count { margin-right: var(--mat-space-2); }
+
+/* the head of a contact: the avatar, the name and what it is, the numbers and the address to call or write to */
+.md-contact-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mat-space-4); }
+.md-contact-head__text { display: flex; flex-direction: column; gap: var(--mat-space-1); flex: 1 1 16rem; min-width: 0; }
+.md-contact-head__name { font-size: var(--mat-fs-lg); }
+.md-contact-head__links { display: flex; flex-wrap: wrap; gap: var(--mat-space-2); }
+
+/* the groups of duplicates: one card each, with gaps */
+.mat-list > .md-groups { order: 2; display: flex; flex-direction: column; gap: var(--mat-space-4); }
+.md-group > .mat-card__head { flex-wrap: wrap; justify-content: space-between; }
+.md-group .mat-card__title { min-width: 0; }
+.md-group > .mat-table-wrap { border: 0; border-radius: 0; box-shadow: none; }
+
+/* the tab Access of an address book: a person is added in one line (who, which role, Add) */
+.md-add-line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mat-space-3) var(--mat-space-5); }
+.md-add-line > .mat-field:first-child { flex: 1 1 18rem; }
+.md-add-line > .mat-fieldset { flex: none; }
+.md-role .mat-options { flex-wrap: nowrap; }
+
+/* the DN of an address book as the LDAP server serves it */
+.md-dn { display: block; padding: var(--mat-space-2) var(--mat-space-3); border-radius: var(--mat-radius); background: var(--mat-surface-2); }

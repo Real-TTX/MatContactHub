@@ -4,30 +4,64 @@
     ViewData["Title"] = L["Contacts.Title"].Value;
     ViewData["NavKey"] ??= "contacts";
     ViewData["SearchText"] = Model.Toolbar.Search;
+    var empty = Model.Toolbar.Total == 0;
 }
 
-<div class="mat-list">
+@* The list of the contacts (LIST-05): toolbar, chips, table, pager, then the actions of a selection and those of the list. The checks belong to the form of the
+   selection (form="contacts-pick"): the toolbar has a GET form of its own, and forms cannot be nested. *@
+<div class="mat-list" data-selectable>
     <partial name="_Toolbar" model="Model.Toolbar" />
 
     @if (Model.Items.Count == 0)
     {
-        <partial name="_Empty" model="@(new EmptyStateModel("users", L[Model.Toolbar.Total == 0 ? "Contacts.Empty" : "Contacts.NoMatch"].Value, L[Model.Toolbar.Total == 0 ? "Contacts.Empty.Text" : "Lists.ChangeTools"].Value, Model.Toolbar.Total == 0 && Model.CanCreate, "/Contacts/Edit", L["Contacts.New"].Value, Model.Toolbar.UrlReset()))" />
+        <partial name="_Empty" model="@(new EmptyStateModel("users", L[empty ? "Contacts.Empty" : "Contacts.NoMatch"].Value, L[empty ? "Contacts.Empty.Text" : "Lists.ChangeTools"].Value, empty && Model.CanCreate, "/Contacts/Edit", L["Contacts.New"].Value, Model.Toolbar.UrlReset()))" />
     }
     else
     {
         <md-table caption="@L["Contacts.Title"]">
             <thead>
-                <tr><th scope="col">@L["Common.Name"]</th><th scope="col" class="mat-hide-sm">@L["Contacts.Col.Company"]</th><th scope="col" class="mat-hide-md">@L["Contacts.Col.Phone"]</th><th scope="col" class="mat-hide-md">@L["Contacts.Col.Email"]</th><th scope="col" class="mat-hide-sm">@L["Contacts.Col.AddressBook"]</th></tr>
+                <tr>
+                    <th scope="col" class="mat-table__select"><input type="checkbox" id="contacts-all" data-select-all aria-label="@L["Contacts.Selection.All"]" /></th>
+                    <th scope="col">@L["Common.Name"]</th>
+                    <th scope="col" class="mat-hide-sm">@L["Contacts.Col.Company"]</th>
+                    <th scope="col">@L["Contacts.Col.Phone"]</th>
+                    <th scope="col" class="mat-hide-sm">@L["Contacts.Col.Email"]</th>
+                    <th scope="col" class="mat-hide-sm">@L["Contacts.Field.City"]</th>
+                    <th scope="col" class="mat-hide-sm">@L["Contacts.Col.AddressBook"]</th>
+                </tr>
             </thead>
             <tbody>
                 @foreach (var c in Model.Items)
                 {
-                    <tr>
-                        <td data-label="@L["Common.Name"]"><div class="mat-table__name"><span class="mat-avatar mat-avatar--sm" aria-hidden="true">@Ui.Initials(c.DisplayName)</span><span><a href="/Contacts/Edit?id=@c.Id">@c.DisplayName</a>@if (c.Synced) { <small>@L["Contacts.Synced"]</small> }</span></div></td>
+                    var sub = string.Join(" · ", new[] { c.JobTitle, c.Department }.Where(x => !string.IsNullOrWhiteSpace(x)));
+                    <tr class="@(c.Hidden ? "md-row-hidden" : null)">
+                        <td data-label="@L["Contacts.Selection.Pick"]" class="mat-table__select"><input type="checkbox" id="pick-@c.Id" name="ids" value="@c.Id" form="contacts-pick" data-select-row aria-label="@L["Contacts.Selection.One", c.DisplayName]" /></td>
+                        <td data-label="@L["Common.Name"]">
+                            <div class="mat-table__name">
+                                @ContactView.Avatar(c.DisplayName, c.AddressBookColor)
+                                <span class="md-contact-name">
+                                    <a href="/Contacts/Edit?id=@c.Id">@c.DisplayName</a>
+                                    @if (sub.Length > 0) { <small>@sub</small> }
+                                    @if (c.Synced || c.Hidden)
+                                    {
+                                        <span class="md-pills">
+                                            @if (c.Synced) { <span class="mat-pill mat-pill--plain" title="@L["Contacts.Synced"]">@Ui.Icon("database")<span>@(c.SourceName ?? L["Contacts.Origin.Synced"].Value)</span></span> }
+                                            @if (c.Hidden) { <span class="mat-pill mat-pill--warn">@Ui.Icon("eye-off")<span>@L["Contacts.Hidden"]</span></span> }
+                                        </span>
+                                    }
+                                </span>
+                            </div>
+                        </td>
                         <td data-label="@L["Contacts.Col.Company"]" class="mat-hide-sm">@c.Company</td>
-                        <td data-label="@L["Contacts.Col.Phone"]" class="mat-mono mat-hide-md">@c.Phone</td>
-                        <td data-label="@L["Contacts.Col.Email"]" class="mat-hide-md md-path">@c.Email</td>
-                        <td data-label="@L["Contacts.Col.AddressBook"]" class="mat-hide-sm">@c.AddressBook</td>
+                        <td data-label="@L["Contacts.Col.Phone"]" class="mat-mono">
+                            <span class="md-numbers">
+                                @ContactView.PhoneLink(c.Phone)
+                                @if (c.Mobile is not null) { <span class="md-number">@Ui.Icon("smartphone")@ContactView.PhoneLink(c.Mobile)</span> }
+                            </span>
+                        </td>
+                        <td data-label="@L["Contacts.Col.Email"]" class="mat-hide-sm md-path">@ContactView.MailLink(c.Email)</td>
+                        <td data-label="@L["Contacts.Field.City"]" class="mat-hide-sm">@c.City</td>
+                        <td data-label="@L["Contacts.Col.AddressBook"]" class="mat-hide-sm"><span class="md-book">@if (c.AddressBookColor is not null) { <span class="mat-dot" data-colour="@c.AddressBookColor" aria-hidden="true"></span> }@c.AddressBook</span></td>
                     </tr>
                 }
             </tbody>
@@ -36,10 +70,33 @@
 
     <partial name="_Pager" model="Model.Pager" />
 
-    @if (Model.CanCreate)
-    {
-        <div class="mat-actions">
-            <a class="mat-btn mat-btn--primary" href="/Contacts/Edit">@Ui.Icon("plus")<span>@L["Contacts.New"]</span></a>
-        </div>
-    }
+    @* the actions of the rows that are ticked (TABLE-05): positive to negative, Delete after a space *@
+    <form class="mat-bulk md-bulk" id="contacts-pick" method="post" asp-page-handler="Selection" data-bulk-bar hidden role="status">
+        <input type="hidden" name="returnUrl" value="@Model.Here" />
+        <span class="mat-bulk__count"><strong data-bulk-count>0</strong> @L[Model.Pager.Pages > 1 ? "Contacts.Selection.CountPage" : "Contacts.Selection.Count"]</span>
+        <button type="submit" name="do" value="export" class="mat-btn mat-btn--secondary mat-btn--sm">@Ui.Icon("download")<span>@L["Contacts.Export.VCard"]</span></button>
+        @if (Model.CanCreate)
+        {
+            <button type="submit" name="do" value="show" class="mat-btn mat-btn--secondary mat-btn--sm">@Ui.Icon("eye")<span>@L["Contacts.Selection.Show"]</span></button>
+            <button type="submit" name="do" value="hide" class="mat-btn mat-btn--secondary mat-btn--sm">@Ui.Icon("eye-off")<span>@L["Contacts.Selection.Hide"]</span></button>
+            <span class="mat-btn-row__spacer"></span>
+            <button type="submit" name="do" value="delete" class="mat-btn mat-btn--danger mat-btn--sm" data-confirm="@L["Contacts.Selection.DeleteConfirm"]" data-confirm-ok="@L["Common.Delete"]">@Ui.Icon("trash")<span>@L["Common.Delete"]</span></button>
+        }
+    </form>
+
+    <div class="mat-actions">
+        @if (Model.CanCreate)
+        {
+            <a class="mat-btn mat-btn--primary" href="/Contacts/Edit@(Model.Toolbar.Filters[0].Selected is { } book ? "?book=" + book : "")">@Ui.Icon("plus")<span>@L["Contacts.New"]</span></a>
+            <a class="mat-btn mat-btn--secondary" href="/Contacts/Import">@Ui.Icon("upload")<span>@L["Contacts.Import"]</span></a>
+        }
+        @if (!empty)
+        {
+            <button type="button" class="mat-btn mat-btn--secondary" data-menu-toggle="contacts-export-menu" data-menu-place="top" aria-haspopup="menu" aria-expanded="false">@Ui.Icon("download")<span>@L["Contacts.Export.List"]</span>@Ui.Icon("chevron-down")</button>
+            <div class="mat-menu" id="contacts-export-menu" role="menu" aria-label="@L["Contacts.Export.List"]" hidden>
+                <a class="mat-menu__item" role="menuitem" href="@Model.ExportUrl(3)">@Ui.Icon("file-text")<span>@L["Contacts.Export.V3", Model.Toolbar.Matching]</span></a>
+                <a class="mat-menu__item" role="menuitem" href="@Model.ExportUrl(4)">@Ui.Icon("file-text")<span>@L["Contacts.Export.V4", Model.Toolbar.Matching]</span></a>
+            </div>
+        }
+    </div>
 </div>
