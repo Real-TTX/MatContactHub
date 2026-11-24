@@ -7,7 +7,8 @@ namespace MatContactHub.Services.Sources;
 
 /// <summary>
 /// The reader of CSV text (RFC 4180 and what spreadsheets write): fields between a delimiter, a field in double quotes may hold the delimiter, line breaks and
-/// doubled quotes (<c>""</c>); lines end with CRLF, LF or CR; empty lines are left out.
+/// doubled quotes (<c>""</c>); lines end with CRLF, LF or CR; empty lines are left out. A quote that is never closed is an error (<see cref="SourceException"/>):
+/// read as one field, it would swallow every record after it, and a sync would take those for deleted.
 /// </summary>
 public static class CsvParser
 {
@@ -60,12 +61,17 @@ public static class CsvParser
         return counts[best] == 0 ? ',' : Candidates[best];
     }
 
-    /// <summary>The records of the text, each a list of its fields.</summary>
+    /// <summary>The records of the text, each a list of its fields. Throws a <see cref="SourceException"/> when the text ends inside a quoted field.</summary>
     public static IEnumerable<List<string>> Parse(TextReader reader, char delimiter)
     {
         var record = new List<string>();
         var field = new StringBuilder();
         var quoted = false;
+
+        // the line of the text (1 = the first) and the one where the open quote began, for the message of a quote that is never closed
+        var line = 1;
+        var quoteLine = 0;
+        var previous = '\0';
         var afterQuote = false;
         var anything = false;
         var buffer = new char[16 * 1024];
@@ -76,6 +82,12 @@ public static class CsvParser
             for (var i = 0; i < read; i++)
             {
                 var c = buffer[i];
+                if (c == '\r' || (c == '\n' && previous != '\r'))
+                {
+                    line++;
+                }
+
+                previous = c;
                 if (pendingCr)
                 {
                     pendingCr = false;
@@ -112,6 +124,7 @@ public static class CsvParser
                     else if (field.Length == 0)
                     {
                         quoted = true;
+                        quoteLine = line;
                     }
                     else
                     {
@@ -148,6 +161,11 @@ public static class CsvParser
                     anything = true;
                 }
             }
+        }
+
+        if (quoted)
+        {
+            throw new SourceException(Text.T("Sources.Error.UnclosedQuote", quoteLine));
         }
 
         if (anything || field.Length > 0)

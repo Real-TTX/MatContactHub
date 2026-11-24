@@ -270,6 +270,7 @@
   "Sources.Error.ConnectionString": { "en": "Please enter the connection string.", "de": "Bitte die Verbindungszeichenfolge eingeben." },
   "Sources.Error.ConnectionStringInvalid": { "en": "The connection string cannot be read: {0}", "de": "Die Verbindungszeichenfolge ist nicht lesbar: {0}" },
   "Sources.Error.NoFile": { "en": "No CSV file has been uploaded yet.", "de": "Es wurde noch keine CSV-Datei hochgeladen." },
+  "Sources.Error.UnclosedQuote": { "en": "The quotes of a field that starts in line {0} are never closed: the rest of the file cannot be read, so no contact is deleted.", "de": "Die Anführungszeichen eines Felds, das in Zeile {0} beginnt, werden nie geschlossen: der Rest der Datei ist nicht lesbar, deshalb wird kein Kontakt gelöscht." },
   "Sources.Error.TooLarge": { "en": "The file is larger than {0} MB.", "de": "Die Datei ist größer als {0} MB." },
   "Sources.Error.NoKey": { "en": "The key field is not set: choose it on the tab Mapping.", "de": "Das Schlüsselfeld fehlt: wähle es im Reiter Zuordnung." },
   "Sources.Error.Database": { "en": "The contacts could not be saved: {0}", "de": "Die Kontakte ließen sich nicht speichern: {0}" },

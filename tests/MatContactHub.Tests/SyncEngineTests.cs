@@ -248,6 +248,31 @@ public sealed class SyncEngineTests
     }
 
     [DbFact]
+    public async Task A_csv_quote_that_is_never_closed_fails_the_run_and_deletes_nothing()
+    {
+        await using var w = await CreateAsync();
+        var csv = "id;first;last;company.name\n1;Ada;Lovelace;Engines\n2;Grace;Hopper;Navy\n3;Alan;Turing;Bletchley\n4;Dora;Dorn;Dorn AG\n";
+        var settings = new SourceSettings { Csv = new CsvSettings { Origin = CsvOrigin.Url, Url = "https://files.example.com/contacts.csv" } };
+        await w.Db.DataSources.Where(s => s.Id == w.Source.Id)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.Kind, DataSourceKind.Csv).SetProperty(x => x.SettingsJson, settings.ToJson(DataSourceKind.Csv)));
+        using var kit = new SourceTestKit(_ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(csv, System.Text.Encoding.UTF8, "text/csv") });
+        var first = await SyncEngine.RunAsync(w.Db, Admin, kit.Env, w.Source.Id, SyncTrigger.Manual);
+        Assert.Equal((SyncState.Succeeded, 4), (first!.State, first.Created));
+
+        // one stray quote in the second record: read as a field, it would swallow the records after it, and those contacts would be deleted
+        csv = "id;first;last;company.name\n1;Ada;Lovelace;Engines\n2;Grace;Hopper;\"Navy\n3;Alan;Turing;Bletchley\n4;Dora;Dorn;Dorn AG\n";
+        w.Db.ChangeTracker.Clear();
+        var run = await SyncEngine.RunAsync(w.Db, Admin, kit.Env, w.Source.Id, SyncTrigger.Manual);
+        w.Db.ChangeTracker.Clear();
+        Assert.Equal(SyncState.Failed, run!.State);
+        Assert.Equal(0, run.Deleted);
+        Assert.Contains(Text.T("Sources.Error.UnclosedQuote", 3), run.Message, StringComparison.Ordinal);
+        var contacts = await w.SyncedAsync();
+        Assert.Equal(["1", "2", "3", "4"], contacts.Select(c => c.ExternalKey));
+        Assert.Equal("Navy", contacts[1].Company);
+    }
+
+    [DbFact]
     public async Task An_empty_answer_deletes_nothing()
     {
         await using var w = await CreateAsync();

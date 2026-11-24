@@ -118,6 +118,24 @@ public sealed class SourceCsvTests
         Assert.Equal("extra", records[1]["Column3"]);
     }
 
+    [Theory]
+    [InlineData("id;company;city\n1;ACME;Berlin\n2;\"ZZ Review AG;Hamburg\n3;Dora;Köln\n4;Emil;Bonn\n", 3)]
+    [InlineData("id;company\r\n1;\"Line one\r\nLine two\"\r\n2;\"open\r\n3;x\r\n", 4)]
+    [InlineData("id;company\n1;\"Say \"\"hi\"\"", 2)]
+    public void A_quote_that_is_never_closed_is_an_error_that_names_its_line(string text, int line)
+    {
+        var error = Assert.Throws<SourceException>(() => Read(text));
+        Assert.Contains(line.ToString(System.Globalization.CultureInfo.InvariantCulture), error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_quote_inside_a_field_is_text()
+    {
+        // only a quote at the start of a field opens a quoted field
+        var record = Assert.Single(Read("id;size\n1;12\" pipe\n"));
+        Assert.Equal("12\" pipe", record["size"]);
+    }
+
     [Fact]
     public void Missing_fields_are_empty_and_extra_ones_get_a_column_name()
     {
