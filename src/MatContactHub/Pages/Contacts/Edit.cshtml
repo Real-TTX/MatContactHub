@@ -28,8 +28,9 @@
             <md-field name="Email" kind="email" label="@L["Contacts.Col.Email"]" value="@Model.Email" maxlength="254" optional disabled="@locked" />
             <md-field name="PhoneBusiness" kind="tel" label="@L["Contacts.PhoneBusiness"]" value="@Model.PhoneBusiness" maxlength="64" optional disabled="@locked" />
             <md-field name="PhoneMobile" kind="tel" label="@L["Contacts.PhoneMobile"]" value="@Model.PhoneMobile" maxlength="64" optional disabled="@locked" />
-            <md-field name="Hidden" kind="switch" label="@L["Contacts.Hidden"]" value="@Model.Hidden.ToString()" hint="@L["Contacts.Hidden.Hint"]" />
+            <md-field name="Hidden" kind="switch" label="@L["Contacts.Hidden"]" value="@Model.Hidden.ToString()" hint="@L["Contacts.Hidden.Hint"]" disabled="@(!Model.CanChangeHidden)" />
         </div>
     </div>
-    <md-buttons save="@L["Common.Save"]" back="/Contacts" delete-handler="@(Model.IsNew || !Model.CanEdit ? null : "Delete")" delete-confirm="@L["Contacts.DeleteConfirm", Model.DisplayName]" />
+    @* a viewer only looks: no switch to change and no Save *@
+    <md-buttons save="@(Model.CanChangeHidden ? L["Common.Save"].Value : null)" back="/Contacts" delete-handler="@(Model.IsNew || !Model.CanEdit ? null : "Delete")" delete-confirm="@L["Contacts.DeleteConfirm", Model.DisplayName]" />
 </form>

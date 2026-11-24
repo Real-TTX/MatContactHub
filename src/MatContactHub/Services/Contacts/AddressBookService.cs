@@ -91,7 +91,8 @@ public static class AddressBookService
             return Outcome<long>.Fail(Text.T("AddressBooks.Name.Invalid"));
         }
 
-        var ldapName = string.IsNullOrWhiteSpace(form.LdapName) ? LdapNameOf(name) : form.LdapName.Trim();
+        // LDAP compares ou values without case (caseIgnoreMatch): the name is kept in small letters, so the unique index sees Kunden and kunden as one
+        var ldapName = string.IsNullOrWhiteSpace(form.LdapName) ? LdapNameOf(name) : form.LdapName.Trim().ToLowerInvariant();
         if (!IsLdapName(ldapName))
         {
             return Outcome<long>.Fail(Text.T("AddressBooks.LdapName.Invalid"));
@@ -123,7 +124,12 @@ public static class AddressBookService
         book.LdapEnabled = form.LdapEnabled;
         book.AppsEnabled = form.AppsEnabled;
         book.IsShared = form.IsShared;
-        book.Color = Ui.IsColour(form.Color) ? form.Color : null;
+        // null keeps the colour an address book has (a caller without the field); empty or not a colour clears it
+        if (form.Color is not null || id is null)
+        {
+            book.Color = Ui.IsColour(form.Color) ? form.Color!.ToLowerInvariant() : null;
+        }
+
         book.SortOrder = form.SortOrder;
         await db.SaveChangesAsync(ct);
         await ActivityLog.AddAsync(db, actor, "addressbook", book.Name, id is null ? "created" : "changed", book.Id, ct);

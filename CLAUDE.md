@@ -8,13 +8,18 @@ A contact directory of its own with a web interface – the idea of estos MetaDi
 files) are imported, unified by a field mapping per source and synchronised automatically into **address books**. **Contacts** are the centre: a list with search,
 filters and sort (the start page after the sign-in), manual contacts next to synchronised ones (read-only: the source wins; only `Hidden` is editable), **duplicate**
 detection. A built-in **LDAP server** (LDAPv3, StartTLS, LDAPS) serves the LDAP-enabled address books to STARFACE, IP phones and mail clients. People have the role
-Viewer or Editor per address book (`AddressBookAccess`), a shared address book makes everybody a viewer, administrators may do everything.
+Viewer or Editor per address book (`AddressBookAccess`), a shared address book makes everybody a viewer, administrators may do everything. A viewer only reads: changing
+`Hidden` of a synced contact needs the role Editor too (it takes the contact out of LDAP and the directory API for everybody).
 
 Part of the Mat family on **MatPlatform 2.4** (MatDesign `docs/PLATFORM.md`): MatContactHub **provides** `contacts.directory` (a key capability: a key per app,
 MatPlatform keeps the keys; the consumer gets `MAT_CONTACTS_DIRECTORY_URL`, `_INTERNAL_URL`, `_KEY` – the platform derives the names from the capability),
 **consumes** `identity.oidc` (MatIdentity) and `mail.smtp` (MatSMTP), both optional, and **contributes** the launcher Contacts (quick actions New contact, Address
 books, Duplicates, Sync now = the action `syncAll`), two admin widgets (`directory` tiles, `syncRuns` list) and health (failing data sources = degraded).
 `contacts.directory` is not in MatDesign's PLATFORM.md table yet: add the row there with the next change of MatDesign.
+**Deliberate deviation from the spec:** the spec names the variables `MAT_CONTACTS_URL`, `_INTERNAL_URL`, `_KEY`. MatPlatform 2.4 derives the names of a key
+capability from its id (`MatCapabilities.KeyStyle`/`PrefixOf`: `contacts.directory` → `MAT_CONTACTS_DIRECTORY_*`, like `office.edit` → `MAT_OFFICE_EDIT_*`), and the
+copy of MatPlatform is never edited here, so MatContactHub keeps `MAT_CONTACTS_DIRECTORY_*` (decided; consumers use these names). Only a written-down entry for
+`contacts.directory` in MatDesign's `MatCapabilities` could give it other names.
 
 Stack: ASP.NET Core on **.NET 10**, C#, **Razor Pages**, EF Core + **PostgreSQL**, the **MatUi** toolkit of MatDesign (`wwwroot/matui`, release **0.12.0**, bundled
 from `origin/main`: never edit by hand), plain JavaScript without a build step, `libphonenumber-csharp` for telephone numbers. Docker-first. Ports: web **7087**,
@@ -27,12 +32,13 @@ local). UI languages: English and German (catalog in `Resources/Texts/*.json`, G
 - **Tests:** `dotnet test`. The database tests (`[DbFact]`) run when `MATCONTACTHUB_TEST_DB` is set (an administrator connection string, e.g.
   `Host=localhost;Port=7089;Username=matcontacthub;Password=matcontacthub;Database=postgres` while the local stack runs); each test creates, migrates and drops a
   database. `TextCatalogTests` check every text key of the code and the scripts in English and German (and the keys built from enums); `PhoneNormalizerTests`,
-  `DataModelTests` (unique keys, soft delete), `PlatformTests` (the definition, the broker variables, the key check of the directory API), `AccountTests`.
+  `DataModelTests` (unique keys, soft delete), `PlatformTests` (the definition, the broker variables, the key check of the directory API), `AccountTests`,
+  `ContactPermissionTests` (viewer / editor / administrator / stranger on manual and synced contacts), `AddressBookServiceTests` (LDAP names without case, colour).
 - **Run / test the app: always rebuild the container** (`./scripts/redeploy.ps1`, `-Clean` for empty volumes). CSS, JS and cshtml are baked into the image.
 - **Test account (always):** `admin@example.com` / `Start12345` – the first account of a fresh stack (it becomes the administrator).
 - **Real UI tests are end to end in a browser** (Playwright with the installed Edge, `channel: 'msedge'`): every page, the console, a phone (390 px), dark mode.
 - **Migrations:** `dotnet ef migrations add <Name> -p src/MatContactHub -o Data/Migrations` (local tool in `dotnet-tools.json`; a design-time factory exists). Applied
-  at start-up. The foundation's `InitialCreate` holds the whole data model of the spec.
+  at start-up. The foundation's `InitialCreate` holds the whole data model of the spec; `LdapNamesIgnoreCase` (0.1) keeps the LDAP names in small letters.
 - **Updating MatUi:** take the release of MatDesign (`origin/main`): the CSS is the parts of `src/MatUi/wwwroot/css` joined in the order of the first line of `matui.css`;
   `matui.js`, `matui.boot.js`, `matui-icons.svg` as they are. **MatPlatform:** `node tools/matplatform-copy.js ../MatContactHub/src/MatContactHub` in MatDesign –
   the tool reads MatDesign's working tree, so only run it while MatDesign is on `main` (else copy `git show origin/main:src/MatPlatform/<file>`).
@@ -98,7 +104,9 @@ touches shared files only where listed. The signatures of the stubs may change i
 `AppDbContext.SaveChanges`), `UpdateState` (0 deleted, 1 created, 2 updated) for soft delete (`User`, `AddressBook`, `Contact`, `DataSource`, `LdapAccount`; a query
 filter hides deleted rows). A `Token` (uuid) where a key is a security feature or an address (`UserSession`, `Contact` = LDAP entryUUID/uid and vCard UID,
 `DataSource`, `SyncRun`). `Contact` is unique per (`DataSourceId`, `ExternalKey`) where `DataSourceId` is set – also over deleted rows, so a record that returns
-comes back as the same contact (`IgnoreQueryFilters` when upserting). `AddressBook.LdapName` and `LdapAccount.Name` are unique among the rows that exist. The
+comes back as the same contact (`IgnoreQueryFilters` when upserting). `AddressBook.LdapName` and `LdapAccount.Name` are unique among the rows that exist and **ASCII in small letters** (LDAP compares ou and cn
+without case, so `Kunden` and `kunden` would be one DN; check constraints `CK_AddressBook_LdapName_Lower` / `CK_LdapAccount_Name_Lower` refuse anything else:
+lower-case what a person types, and compare a bind name in small letters). The
 settings are the one row of `SystemSetting` (Id 1, `SettingsStore`), including the LDAP settings and the shared `DefaultCountry`.
 
 **Security**: every page and API call goes through the business layer, which checks the actor again (static classes taking `AppDbContext` + `Actor`); what may not

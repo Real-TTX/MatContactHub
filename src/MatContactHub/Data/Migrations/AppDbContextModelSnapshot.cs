@@ -134,7 +134,10 @@ namespace MatContactHub.Data.Migrations
                         .IsUnique()
                         .HasFilter("\"UpdateState\" <> 0");
 
-                    b.ToTable("AddressBook", (string)null);
+                    b.ToTable("AddressBook", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_AddressBook_LdapName_Lower", "\"LdapName\" = lower(\"LdapName\")");
+                        });
                 });
 
             modelBuilder.Entity("MatContactHub.Data.AddressBookAccess", b =>
@@ -582,7 +585,10 @@ namespace MatContactHub.Data.Migrations
                         .IsUnique()
                         .HasFilter("\"UpdateState\" <> 0");
 
-                    b.ToTable("LdapAccount", (string)null);
+                    b.ToTable("LdapAccount", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_LdapAccount_Name_Lower", "\"Name\" = lower(\"Name\")");
+                        });
                 });
 
             modelBuilder.Entity("MatContactHub.Data.LdapAccountAddressBook", b =>

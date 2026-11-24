@@ -55,7 +55,7 @@ public sealed class ButtonRowTagHelper : TagHelper
         var extra = (await output.GetChildContentAsync()).GetContent();
         output.TagName = null;
         var sb = new StringBuilder("<div class=\"mat-btn-row md-btn-row\">");
-        if (Save is not null)
+        if (!string.IsNullOrEmpty(Save)) // empty like left out: a Razor expression that is null arrives as ""
         {
             sb.Append($"<button type=\"submit\" class=\"mat-btn mat-btn--primary\">{Ui.Icon(SaveIcon)}<span>{E(Save)}</span></button>");
         }

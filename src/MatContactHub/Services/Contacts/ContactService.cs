@@ -96,7 +96,8 @@ public static class ContactService
     }
 
     /// <summary>
-    /// Creates (<paramref name="id"/> null) or changes a manual contact in an address book where the actor is an editor. Of a synced contact only
+    /// Creates (<paramref name="id"/> null) or changes a contact in an address book where the actor is an editor (a viewer changes nothing, not even
+    /// <see cref="ContactForm.Hidden"/>: it takes a contact out of LDAP and the directory API for everybody). Of a synced contact only
     /// <see cref="ContactForm.Hidden"/> is taken (the source wins for everything else). Answers the id.
     /// </summary>
     public static async Task<Outcome<long>> SaveAsync(AppDbContext db, Actor actor, long? id, ContactForm form, CancellationToken ct = default)
@@ -105,22 +106,21 @@ public static class ContactService
         if (id is { } existing)
         {
             contact = await db.Contacts.FirstOrDefaultAsync(c => c.Id == existing, ct);
-            if (contact is null || await AddressBookService.RoleAsync(db, actor, contact.AddressBookId, ct) == AddressBookRole.None)
+            if (contact is null || await AddressBookService.RoleAsync(db, actor, contact.AddressBookId, ct) < AddressBookRole.Editor)
             {
                 return Outcome<long>.Denied();
             }
 
             if (contact.DataSourceId is not null)
             {
-                contact.Hidden = form.Hidden;
-                await db.SaveChangesAsync(ct);
-                await ActivityLog.AddAsync(db, actor, "contact", contact.DisplayName, form.Hidden ? "hidden" : "shown", contact.Id, ct);
-                return Outcome<long>.Success(contact.Id);
-            }
+                if (contact.Hidden != form.Hidden)
+                {
+                    contact.Hidden = form.Hidden;
+                    await db.SaveChangesAsync(ct);
+                    await ActivityLog.AddAsync(db, actor, "contact", contact.DisplayName, form.Hidden ? "hidden" : "shown", contact.Id, ct);
+                }
 
-            if (await AddressBookService.RoleAsync(db, actor, contact.AddressBookId, ct) < AddressBookRole.Editor)
-            {
-                return Outcome<long>.Denied();
+                return Outcome<long>.Success(contact.Id);
             }
         }
 

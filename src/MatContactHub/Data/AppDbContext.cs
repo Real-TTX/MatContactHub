@@ -91,7 +91,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, Current
 
         b.Entity<AddressBook>(e =>
         {
-            e.ToTable("AddressBook");
+            // LDAP compares ou values without case: the LDAP name is kept in small letters, so the unique index below is one without case too
+            e.ToTable("AddressBook", t => t.HasCheckConstraint("CK_AddressBook_LdapName_Lower", "\"LdapName\" = lower(\"LdapName\")"));
             e.Property(x => x.Name).HasMaxLength(120);
             e.Property(x => x.Description).HasMaxLength(1000);
             e.Property(x => x.LdapName).HasMaxLength(64);
@@ -200,7 +201,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, Current
 
         b.Entity<LdapAccount>(e =>
         {
-            e.ToTable("LdapAccount");
+            // the bind name (cn=) is compared without case in LDAP: kept in small letters, so the unique index below is one without case too
+            e.ToTable("LdapAccount", t => t.HasCheckConstraint("CK_LdapAccount_Name_Lower", "\"Name\" = lower(\"Name\")"));
             e.Property(x => x.Name).HasMaxLength(64);
             e.HasIndex(x => x.Name).IsUnique().HasFilter("\"UpdateState\" <> 0");
             e.Property(x => x.Description).HasMaxLength(1000);

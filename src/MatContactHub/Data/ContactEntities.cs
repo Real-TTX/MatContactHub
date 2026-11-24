@@ -22,7 +22,8 @@ public sealed class AddressBook : SoftEntity
 
     public string? Description { get; set; }
 
-    /// <summary>The value of the RDN in the LDAP tree (<c>ou=&lt;LdapName&gt;</c>): letters, digits, <c>-</c> and <c>_</c>. Unique among the address books that exist.</summary>
+    /// <summary>The value of the RDN in the LDAP tree (<c>ou=&lt;LdapName&gt;</c>): small letters, digits, <c>-</c> and <c>_</c> (LDAP compares it without case;
+    /// a check constraint keeps it in small letters). Unique among the address books that exist.</summary>
     public string LdapName { get; set; } = string.Empty;
 
     /// <summary>The LDAP server serves this address book.</summary>

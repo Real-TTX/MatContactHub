@@ -6,7 +6,8 @@ namespace MatContactHub.Data;
 /// </summary>
 public sealed class LdapAccount : SoftEntity
 {
-    /// <summary>The bind name (<c>starface</c>); unique among the accounts that exist.</summary>
+    /// <summary>The bind name (<c>starface</c>): ASCII in small letters (LDAP compares it without case; a check constraint enforces it, so lower-case what a person types),
+    /// unique among the accounts that exist.</summary>
     public string Name { get; set; } = string.Empty;
 
     /// <summary>The hash of the password (the format of <c>PasswordService</c>).</summary>

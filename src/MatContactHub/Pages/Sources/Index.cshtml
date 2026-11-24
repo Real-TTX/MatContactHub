@@ -6,9 +6,15 @@
 }
 
 <div class="mat-list">
-    @if (Model.Items.Count == 0)
+    <partial name="_Toolbar" model="Model.Toolbar" />
+
+    @if (Model.Toolbar.Total == 0)
     {
         <partial name="_Empty" model="@(new EmptyStateModel("database", L["Sources.Empty"].Value, L["Sources.Empty.Text"].Value, true, "/Sources/Edit", L["Sources.New"].Value))" />
+    }
+    else if (Model.Items.Count == 0)
+    {
+        <partial name="_Empty" model="@(new EmptyStateModel("database", L["Lists.NoMatch"].Value, L["Lists.ChangeTools"].Value, false, null, null, Model.Toolbar.UrlReset()))" />
     }
     else
     {
@@ -42,9 +48,11 @@
         </md-table>
     }
 
+    <partial name="_Pager" model="Model.Pager" />
+
     <div class="mat-actions">
         <a class="mat-btn mat-btn--primary" href="/Sources/Edit">@Ui.Icon("plus")<span>@L["Sources.New"]</span></a>
-        @if (Model.Items.Count > 0)
+        @if (Model.Toolbar.Total > 0)
         {
             <form method="post" asp-page-handler="SyncAll">
                 <button type="submit" class="mat-btn mat-btn--secondary">@Ui.Icon("refresh")<span>@L["Sources.SyncAll"]</span></button>

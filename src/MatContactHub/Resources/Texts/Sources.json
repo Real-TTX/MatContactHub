@@ -1,6 +1,9 @@
 {
   "Sources.Title": { "en": "Data sources", "de": "Datenquellen" },
   "Sources.New": { "en": "New data source", "de": "Neue Datenquelle" },
+  "Sources.One": { "en": "data source", "de": "Datenquelle" },
+  "Sources.Many": { "en": "data sources", "de": "Datenquellen" },
+  "Sources.Search": { "en": "Name or address book", "de": "Name oder Adressbuch" },
   "Sources.Empty": { "en": "No data sources yet", "de": "Noch keine Datenquellen" },
   "Sources.Empty.Text": { "en": "Import contacts from a REST API, SQL Server or a CSV file.", "de": "Importiere Kontakte aus einer REST-API, aus SQL Server oder einer CSV-Datei." },
   "Sources.Col.Kind": { "en": "Kind", "de": "Art" },

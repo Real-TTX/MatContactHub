@@ -43,6 +43,9 @@ public sealed class EditModel(AppDbContext db) : AppPageModel
     /// <summary>The person may change the fields (an editor of the address book, a manual contact).</summary>
     public bool CanEdit { get; private set; }
 
+    /// <summary>The person may change Hidden and save (an editor of the address book; a viewer only looks).</summary>
+    public bool CanChangeHidden { get; private set; }
+
     public List<Choice> AddressBooks { get; private set; } = [];
 
     public async Task<IActionResult> OnGetAsync()
@@ -60,7 +63,8 @@ public sealed class EditModel(AppDbContext db) : AppPageModel
                     f.PhoneBusiness ?? string.Empty, f.PhoneMobile ?? string.Empty, f.Hidden);
             Synced = contact.Synced;
             SourceName = contact.SourceName;
-            CanEdit = !contact.Synced && contact.Role >= AddressBookRole.Editor;
+            CanChangeHidden = contact.Role >= AddressBookRole.Editor;
+            CanEdit = !contact.Synced && CanChangeHidden;
         }
 
         await LoadAsync();
@@ -74,7 +78,7 @@ public sealed class EditModel(AppDbContext db) : AppPageModel
             AddressBookId = long.TryParse(Request.Query["book"], out var book) && AddressBooks.Any(b => b.Value == book.ToString(System.Globalization.CultureInfo.InvariantCulture))
                 ? book
                 : long.Parse(AddressBooks[0].Value, System.Globalization.CultureInfo.InvariantCulture);
-            CanEdit = true;
+            CanEdit = CanChangeHidden = true;
         }
 
         return Page();
@@ -92,7 +96,7 @@ public sealed class EditModel(AppDbContext db) : AppPageModel
         if (!saved.Ok)
         {
             ModelState.AddModelError(string.Empty, saved.Error!);
-            CanEdit = true;
+            CanEdit = CanChangeHidden = true;
             await LoadAsync();
             return Page();
         }

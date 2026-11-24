@@ -6,9 +6,15 @@
 }
 
 <div class="mat-list">
-    @if (Model.Groups.Count == 0)
+    <partial name="_Toolbar" model="Model.Toolbar" />
+
+    @if (Model.Toolbar.Total == 0)
     {
         <partial name="_Empty" model="@(new EmptyStateModel("check-circle", L["Duplicates.Empty"].Value, L["Duplicates.Empty.Text"].Value, true))" />
+    }
+    else if (Model.Groups.Count == 0)
+    {
+        <partial name="_Empty" model="@(new EmptyStateModel("check-circle", L["Lists.NoMatch"].Value, L["Lists.ChangeTools"].Value, false, null, null, Model.Toolbar.UrlReset()))" />
     }
     else
     {
@@ -29,4 +35,6 @@
             </md-table>
         }
     }
+
+    <partial name="_Pager" model="Model.Pager" />
 </div>

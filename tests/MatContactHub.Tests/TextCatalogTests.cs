@@ -92,7 +92,8 @@ public sealed partial class TextCatalogTests
             .Concat(Enum.GetNames<Data.DataSourceKind>().Select(k => "Sources.Kind." + k))
             .Concat(Enum.GetNames<Data.SyncState>().Select(k => "Sources.State." + k))
             .Concat(Enum.GetNames<Data.NumberFormat>().Select(k => "Ldap.NumberFormat." + k))
-            .Concat(Enum.GetNames<Data.AddressBookRole>().Select(k => "AddressBooks.Role." + k));
+            .Concat(Enum.GetNames<Data.AddressBookRole>().Select(k => "AddressBooks.Role." + k))
+            .Concat(Enum.GetNames<Services.Contacts.DuplicateReason>().Select(k => "Duplicates.Reason." + k));
         Assert.All(keys, k => Assert.True(TextCatalog.Entries.ContainsKey(k), k));
     }
 

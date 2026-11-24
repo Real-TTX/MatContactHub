@@ -17,6 +17,7 @@
             <md-field name="LdapEnabled" kind="switch" label="@L["AddressBooks.LdapEnabled"]" value="@Model.LdapEnabled.ToString()" />
             <md-field name="LdapName" label="@L["AddressBooks.LdapName"]" value="@Model.LdapName" maxlength="64" optional mono hint="@L["AddressBooks.LdapName.Hint"]" />
             <md-field name="AppsEnabled" kind="switch" label="@L["AddressBooks.Apps"]" value="@Model.AppsEnabled.ToString()" hint="@L["AddressBooks.Apps.Hint"]" />
+            <md-field name="Color" kind="colour" label="@L["Common.Color"]" value="@Model.Color" optional picker="clearable" hint="@L["AddressBooks.Color.Hint"]" />
             <md-field name="SortOrder" kind="number" label="@L["AddressBooks.SortOrder"]" value="@Model.SortOrder" inputmode="numeric" />
         </div>
     </div>

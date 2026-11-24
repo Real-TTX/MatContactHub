@@ -25,6 +25,8 @@ public sealed class EditModel(AppDbContext db) : AppPageModel
 
     [BindProperty] public bool IsShared { get; set; }
 
+    [BindProperty] public string Color { get; set; } = string.Empty;
+
     [BindProperty] public int SortOrder { get; set; }
 
     public bool IsNew => Id is null;
@@ -43,8 +45,8 @@ public sealed class EditModel(AppDbContext db) : AppPageModel
                 return NotFound();
             }
 
-            (Name, Description, LdapName, LdapEnabled, AppsEnabled, IsShared, SortOrder) =
-                (book.Name, book.Description ?? string.Empty, book.LdapName, book.LdapEnabled, book.AppsEnabled, book.IsShared, book.SortOrder);
+            (Name, Description, LdapName, LdapEnabled, AppsEnabled, IsShared, Color, SortOrder) =
+                (book.Name, book.Description ?? string.Empty, book.LdapName, book.LdapEnabled, book.AppsEnabled, book.IsShared, book.Color ?? string.Empty, book.SortOrder);
         }
 
         return Page();
@@ -52,7 +54,7 @@ public sealed class EditModel(AppDbContext db) : AppPageModel
 
     public async Task<IActionResult> OnPostAsync()
     {
-        var form = new AddressBookForm(Name, Description, LdapName, LdapEnabled, AppsEnabled, IsShared, null, SortOrder);
+        var form = new AddressBookForm(Name, Description, LdapName, LdapEnabled, AppsEnabled, IsShared, Color, SortOrder);
         var saved = await AddressBookService.SaveAsync(db, Actor.ForUser(Me), Id, form, HttpContext.RequestAborted);
         if (saved.NotAllowed)
         {

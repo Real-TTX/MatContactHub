@@ -5,7 +5,7 @@
      again.
    - The platform API, the directory API, the search suggestions and every change (POST) are never touched. */
 const VERSION = 'matcontacthub-v1';
-const PAGES = 'mch-pages';
+const PAGES = 'mch-pages'; // the same name in js/pwa.js, which deletes it on sign-out
 const SHELL = [
   '/offline.html', '/js/offline.js', '/js/pwa.js', '/js/util.js', '/matui/matui.css', '/matui/matui.js', '/matui/matui.boot.js', '/css/app.css', '/favicon.svg',
   '/img/icon-192.png', '/img/icon-512.png', '/img/logo/matcontacthub-logo.svg', '/img/logo/matcontacthub-logo-dark.svg', '/img/logo/matcontacthub-mark.svg', '/manifest.webmanifest',

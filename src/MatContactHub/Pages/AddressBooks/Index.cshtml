@@ -6,9 +6,15 @@
 }
 
 <div class="mat-list">
-    @if (Model.Items.Count == 0)
+    <partial name="_Toolbar" model="Model.Toolbar" />
+
+    @if (Model.Toolbar.Total == 0)
     {
         <partial name="_Empty" model="@(new EmptyStateModel("book", L["AddressBooks.Empty"].Value, L[Model.IsAdmin ? "AddressBooks.Empty.Admin" : "AddressBooks.Empty.Text"].Value, Model.IsAdmin, "/AddressBooks/Edit", L["AddressBooks.New"].Value))" />
+    }
+    else if (Model.Items.Count == 0)
+    {
+        <partial name="_Empty" model="@(new EmptyStateModel("book", L["Lists.NoMatch"].Value, L["Lists.ChangeTools"].Value, false, null, null, Model.Toolbar.UrlReset()))" />
     }
     else
     {
@@ -40,6 +46,8 @@
             </tbody>
         </md-table>
     }
+
+    <partial name="_Pager" model="Model.Pager" />
 
     @if (Model.IsAdmin)
     {

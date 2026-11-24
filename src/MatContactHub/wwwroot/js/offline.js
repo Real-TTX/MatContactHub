@@ -1,7 +1,7 @@
 /* MatContactHub without a network – small on purpose.
    - A page of the app shows "Offline" in the top bar while the device has no network (a click tries again).
    - The offline page (offline.html, shown by the service worker when a page cannot be loaded) tries again by itself as soon as the network is back, and by a button.
-   - The pages of the library and the thumbnails seen last come from the service worker while offline. */
+   - The contact pages seen last (the list, a contact, the address books, the duplicates) come from the service worker while offline (read-only). */
 (function () {
   'use strict';
 
@@ -33,7 +33,12 @@
     root.lang = stored || ((navigator.language || 'en').slice(0, 2) === 'de' ? 'de' : lang || 'en');
     var retry = document.getElementById('md-retry');
     var status = document.getElementById('md-retry-status');
-    var go = function () { location.assign(document.referrer && document.referrer.indexOf(location.origin) === 0 ? document.referrer : '/drive'); };
+    // the service worker shows the offline page under the address that was asked for: loading it again tries that page; opened as /offline.html itself, the
+    // page that led here (of this app) or the contacts
+    var go = function () {
+      if (location.pathname !== '/offline.html') { location.reload(); return; }
+      location.assign(document.referrer && document.referrer.indexOf(location.origin + '/') === 0 ? document.referrer : '/Contacts');
+    };
     retry.addEventListener('click', function () {
       status.hidden = false;
       fetch('/health', { cache: 'no-store' }).then(function (r) { if (r.ok) { go(); } else { status.hidden = false; } }).catch(function () { status.hidden = false; });
