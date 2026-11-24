@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>MatContactHub logo</title>
+<style>
+  body { margin: 0; font: 13px 'Segoe UI', Arial, sans-serif; width: 1100px; }
+  section { padding: 18px 24px; }
+  .light { background: #f5f4f1; color: #1f1e1b; }
+  .dark { background: #151514; color: #f4f2ef; }
+  h1 { margin: 0; padding: 18px 24px 0; font-size: 20px; background: #f5f4f1; }
+  h1 + p { margin: 0; padding: 4px 24px 0; background: #f5f4f1; color: #6b6862; }
+  h2 { margin: 0 0 10px; font-size: 14px; }
+  .row { display: flex; align-items: center; gap: 16px; margin: 10px 0; }
+  .label { width: 90px; color: #8a867f; }
+  .note { color: #8a867f; }
+  .px { image-rendering: pixelated; }
+  .mask.circle { clip-path: circle(50%); }
+  .mask.squircle { border-radius: 30%; }
+  .mono { display: flex; gap: 16px; align-items: center; color: #B81D97; }
+  .dark .mono { color: #E98BCB; }
+  .tile { display: inline-grid; place-items: center; border-radius: 22%; background: #B81D97; color: #fff; }
+  .dark .tile { background: color-mix(in oklab, #B81D97 74%, white); color: #0b1020; }
+  .tile svg, .glyph svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .glyph { display: flex; gap: 16px; align-items: center; margin-left: 16px; }
+</style></head>
+<body>
+<h1>MatContactHub</h1>
+<p>Accent #b81d97 (white text 5.7:1), links on dark surfaces #e98bcb. Written by scripts/logo.js, drawn by scripts/icons.ps1.</p>
+<section class="light">
+  <h2>Light surface</h2>
+  <div class="row"><span class="label">mark</span><img src="matcontacthub-mark.svg" width="16" height="16" alt=""><img src="matcontacthub-mark.svg" width="24" height="24" alt=""><img src="matcontacthub-mark.svg" width="32" height="32" alt=""><img src="matcontacthub-mark.svg" width="48" height="48" alt=""><img src="matcontacthub-mark.svg" width="64" height="64" alt=""><img src="matcontacthub-mark.svg" width="96" height="96" alt=""><img src="matcontacthub-mark.svg" width="192" height="192" alt=""></div>
+  <div class="row"><span class="label">favicon</span><img src="matcontacthub-favicon.svg" width="16" height="16" alt=""><img src="matcontacthub-favicon.svg" width="32" height="32" alt="">
+    <img class="px" src="../../src/MatContactHub/wwwroot/img/favicon-16.png" width="128" height="128" alt="">
+    <img class="px" src="../../src/MatContactHub/wwwroot/img/favicon-32.png" width="128" height="128" alt=""><span class="note">16 and 32 px, eight times</span></div>
+  <div class="row"><span class="label">maskable</span><img src="matcontacthub-maskable.svg" width="96" height="96" alt=""><img class="mask circle" src="matcontacthub-maskable.svg" width="96" height="96" alt=""><img class="mask squircle" src="matcontacthub-maskable.svg" width="96" height="96" alt=""><span class="note">full, circle, squircle</span></div>
+  <div class="row"><span class="label">mono</span><span class="mono"><svg width="16" height="16" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="MatContactHub">
+  <mask id="person"><rect width="64" height="64" fill="#fff"/><circle cx="23" cy="26" r="6.5" fill="#000"/><path d="M12 45C12 38.6 16.9 34.5 23 34.5S34 38.6 34 45Z" fill="#000"/></mask>
+  <rect x="7" y="12" width="32" height="40" rx="6" fill="currentColor" mask="url(#person)"/><path d="M39 32h5.5M44.5 19v26M44.5 19h4M44.5 32h4M44.5 45h4" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/><circle cx="52.5" cy="19" r="4.5" fill="currentColor"/><circle cx="52.5" cy="32" r="4.5" fill="currentColor"/><circle cx="52.5" cy="45" r="4.5" fill="currentColor"/>
+</svg>
+<svg width="24" height="24" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="MatContactHub">
+  <mask id="person"><rect width="64" height="64" fill="#fff"/><circle cx="23" cy="26" r="6.5" fill="#000"/><path d="M12 45C12 38.6 16.9 34.5 23 34.5S34 38.6 34 45Z" fill="#000"/></mask>
+  <rect x="7" y="12" width="32" height="40" rx="6" fill="currentColor" mask="url(#person)"/><path d="M39 32h5.5M44.5 19v26M44.5 19h4M44.5 32h4M44.5 45h4" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/><circle cx="52.5" cy="19" r="4.5" fill="currentColor"/><circle cx="52.5" cy="32" r="4.5" fill="currentColor"/><circle cx="52.5" cy="45" r="4.5" fill="currentColor"/>
+</svg>
+<svg width="48" height="48" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="MatContactHub">
+  <mask id="person"><rect width="64" height="64" fill="#fff"/><circle cx="23" cy="26" r="6.5" fill="#000"/><path d="M12 45C12 38.6 16.9 34.5 23 34.5S34 38.6 34 45Z" fill="#000"/></mask>
+  <rect x="7" y="12" width="32" height="40" rx="6" fill="currentColor" mask="url(#person)"/><path d="M39 32h5.5M44.5 19v26M44.5 19h4M44.5 32h4M44.5 45h4" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/><circle cx="52.5" cy="19" r="4.5" fill="currentColor"/><circle cx="52.5" cy="32" r="4.5" fill="currentColor"/><circle cx="52.5" cy="45" r="4.5" fill="currentColor"/>
+</svg>
+<svg width="96" height="96" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="MatContactHub">
+  <mask id="person"><rect width="64" height="64" fill="#fff"/><circle cx="23" cy="26" r="6.5" fill="#000"/><path d="M12 45C12 38.6 16.9 34.5 23 34.5S34 38.6 34 45Z" fill="#000"/></mask>
+  <rect x="7" y="12" width="32" height="40" rx="6" fill="currentColor" mask="url(#person)"/><path d="M39 32h5.5M44.5 19v26M44.5 19h4M44.5 32h4M44.5 45h4" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/><circle cx="52.5" cy="19" r="4.5" fill="currentColor"/><circle cx="52.5" cy="32" r="4.5" fill="currentColor"/><circle cx="52.5" cy="45" r="4.5" fill="currentColor"/>
+</svg>
+</span></div>
+  <div class="row"><span class="label">menu glyph</span><span class="tile" style="width:28px;height:28px"><svg viewBox="0 0 24 24" style="width:56%;height:56%"><rect x='2' y='3.5' width='14' height='17' rx='2.5'/><circle cx='9' cy='9.5' r='2.25'/><path d='M5 17.5a4 4 0 0 1 8 0'/><path d='M16 12h2M18 7v10M18 7h.5M18 17h.5'/><path d='M21.25 7h.01M21.25 12h.01M21.25 17h.01' stroke-width='3.5'/></svg></span><span class="tile" style="width:38px;height:38px"><svg viewBox="0 0 24 24" style="width:56%;height:56%"><rect x='2' y='3.5' width='14' height='17' rx='2.5'/><circle cx='9' cy='9.5' r='2.25'/><path d='M5 17.5a4 4 0 0 1 8 0'/><path d='M16 12h2M18 7v10M18 7h.5M18 17h.5'/><path d='M21.25 7h.01M21.25 12h.01M21.25 17h.01' stroke-width='3.5'/></svg></span><span class="tile" style="width:56px;height:56px"><svg viewBox="0 0 24 24" style="width:56%;height:56%"><rect x='2' y='3.5' width='14' height='17' rx='2.5'/><circle cx='9' cy='9.5' r='2.25'/><path d='M5 17.5a4 4 0 0 1 8 0'/><path d='M16 12h2M18 7v10M18 7h.5M18 17h.5'/><path d='M21.25 7h.01M21.25 12h.01M21.25 17h.01' stroke-width='3.5'/></svg></span><span class="tile" style="width:88px;height:88px"><svg viewBox="0 0 24 24" style="width:56%;height:56%"><rect x='2' y='3.5' width='14' height='17' rx='2.5'/><circle cx='9' cy='9.5' r='2.25'/><path d='M5 17.5a4 4 0 0 1 8 0'/><path d='M16 12h2M18 7v10M18 7h.5M18 17h.5'/><path d='M21.25 7h.01M21.25 12h.01M21.25 17h.01' stroke-width='3.5'/></svg></span><span class="glyph"><svg viewBox="0 0 24 24" width="16" height="16"><rect x='2' y='3.5' width='14' height='17' rx='2.5'/><circle cx='9' cy='9.5' r='2.25'/><path d='M5 17.5a4 4 0 0 1 8 0'/><path d='M16 12h2M18 7v10M18 7h.5M18 17h.5'/><path d='M21.25 7h.01M21.25 12h.01M21.25 17h.01' stroke-width='3.5'/></svg><svg viewBox="0 0 24 24" width="20" height="20"><rect x='2' y='3.5' width='14' height='17' rx='2.5'/><circle cx='9' cy='9.5' r='2.25'/><path d='M5 17.5a4 4 0 0 1 8 0'/><path d='M16 12h2M18 7v10M18 7h.5M18 17h.5'/><path d='M21.25 7h.01M21.25 12h.01M21.25 17h.01' stroke-width='3.5'/></svg><svg viewBox="0 0 24 24" width="24" height="24"><rect x='2' y='3.5' width='14' height='17' rx='2.5'/><circle cx='9' cy='9.5' r='2.25'/><path d='M5 17.5a4 4 0 0 1 8 0'/><path d='M16 12h2M18 7v10M18 7h.5M18 17h.5'/><path d='M21.25 7h.01M21.25 12h.01M21.25 17h.01' stroke-width='3.5'/></svg><svg viewBox="0 0 24 24" width="48" height="48"><rect x='2' y='3.5' width='14' height='17' rx='2.5'/><circle cx='9' cy='9.5' r='2.25'/><path d='M5 17.5a4 4 0 0 1 8 0'/><path d='M16 12h2M18 7v10M18 7h.5M18 17h.5'/><path d='M21.25 7h.01M21.25 12h.01M21.25 17h.01' stroke-width='3.5'/></svg></span></div>
+  <div class="row"><span class="label">logo</span><img src="matcontacthub-logo.svg" height="40" alt=""><img src="matcontacthub-logo.svg" height="80" alt=""></div>
+</section>
+<section class="dark">
+  <h2>Dark surface</h2>
+  <div class="row"><span class="label">mark</span><img src="matcontacthub-mark.svg" width="16" height="16" alt=""><img src="matcontacthub-mark.svg" width="24" height="24" alt=""><img src="matcontacthub-mark.svg" width="32" height="32" alt=""><img src="matcontacthub-mark.svg" width="48" height="48" alt=""><img src="matcontacthub-mark.svg" width="64" height="64" alt=""><img src="matcontacthub-mark.svg" width="96" height="96" alt=""><img src="matcontacthub-mark.svg" width="192" height="192" alt=""></div>
+  <div class="row"><span class="label">favicon</span><img src="matcontacthub-favicon.svg" width="16" height="16" alt=""><img src="matcontacthub-favicon.svg" width="32" height="32" alt="">
+    <img class="px" src="../../src/MatContactHub/wwwroot/img/favicon-16.png" width="128" height="128" alt="">
+    <img class="px" src="../../src/MatContactHub/wwwroot/img/favicon-32.png" width="128" height="128" alt=""><span class="note">16 and 32 px, eight times</span></div>
+  <div class="row"><span class="label">maskable</span><img src="matcontacthub-maskable.svg" width="96" height="96" alt=""><img class="mask circle" src="matcontacthub-maskable.svg" width="96" height="96" alt=""><img class="mask squircle" src="matcontacthub-maskable.svg" width="96" height="96" alt=""><span class="note">full, circle, squircle</span></div>
+  <div class="row"><span class="label">mono</span><span class="mono"><svg width="16" height="16" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="MatContactHub">
+  <mask id="person"><rect width="64" height="64" fill="#fff"/><circle cx="23" cy="26" r="6.5" fill="#000"/><path d="M12 45C12 38.6 16.9 34.5 23 34.5S34 38.6 34 45Z" fill="#000"/></mask>
+  <rect x="7" y="12" width="32" height="40" rx="6" fill="currentColor" mask="url(#person)"/><path d="M39 32h5.5M44.5 19v26M44.5 19h4M44.5 32h4M44.5 45h4" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/><circle cx="52.5" cy="19" r="4.5" fill="currentColor"/><circle cx="52.5" cy="32" r="4.5" fill="currentColor"/><circle cx="52.5" cy="45" r="4.5" fill="currentColor"/>
+</svg>
+<svg width="24" height="24" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="MatContactHub">
+  <mask id="person"><rect width="64" height="64" fill="#fff"/><circle cx="23" cy="26" r="6.5" fill="#000"/><path d="M12 45C12 38.6 16.9 34.5 23 34.5S34 38.6 34 45Z" fill="#000"/></mask>
+  <rect x="7" y="12" width="32" height="40" rx="6" fill="currentColor" mask="url(#person)"/><path d="M39 32h5.5M44.5 19v26M44.5 19h4M44.5 32h4M44.5 45h4" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/><circle cx="52.5" cy="19" r="4.5" fill="currentColor"/><circle cx="52.5" cy="32" r="4.5" fill="currentColor"/><circle cx="52.5" cy="45" r="4.5" fill="currentColor"/>
+</svg>
+<svg width="48" height="48" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="MatContactHub">
+  <mask id="person"><rect width="64" height="64" fill="#fff"/><circle cx="23" cy="26" r="6.5" fill="#000"/><path d="M12 45C12 38.6 16.9 34.5 23 34.5S34 38.6 34 45Z" fill="#000"/></mask>
+  <rect x="7" y="12" width="32" height="40" rx="6" fill="currentColor" mask="url(#person)"/><path d="M39 32h5.5M44.5 19v26M44.5 19h4M44.5 32h4M44.5 45h4" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/><circle cx="52.5" cy="19" r="4.5" fill="currentColor"/><circle cx="52.5" cy="32" r="4.5" fill="currentColor"/><circle cx="52.5" cy="45" r="4.5" fill="currentColor"/>
+</svg>
+<svg width="96" height="96" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="MatContactHub">
+  <mask id="person"><rect width="64" height="64" fill="#fff"/><circle cx="23" cy="26" r="6.5" fill="#000"/><path d="M12 45C12 38.6 16.9 34.5 23 34.5S34 38.6 34 45Z" fill="#000"/></mask>
+  <rect x="7" y="12" width="32" height="40" rx="6" fill="currentColor" mask="url(#person)"/><path d="M39 32h5.5M44.5 19v26M44.5 19h4M44.5 32h4M44.5 45h4" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/><circle cx="52.5" cy="19" r="4.5" fill="currentColor"/><circle cx="52.5" cy="32" r="4.5" fill="currentColor"/><circle cx="52.5" cy="45" r="4.5" fill="currentColor"/>
+</svg>
+</span></div>
+  <div class="row"><span class="label">menu glyph</span><span class="tile" style="width:28px;height:28px"><svg viewBox="0 0 24 24" style="width:56%;height:56%"><rect x='2' y='3.5' width='14' height='17' rx='2.5'/><circle cx='9' cy='9.5' r='2.25'/><path d='M5 17.5a4 4 0 0 1 8 0'/><path d='M16 12h2M18 7v10M18 7h.5M18 17h.5'/><path d='M21.25 7h.01M21.25 12h.01M21.25 17h.01' stroke-width='3.5'/></svg></span><span class="tile" style="width:38px;height:38px"><svg viewBox="0 0 24 24" style="width:56%;height:56%"><rect x='2' y='3.5' width='14' height='17' rx='2.5'/><circle cx='9' cy='9.5' r='2.25'/><path d='M5 17.5a4 4 0 0 1 8 0'/><path d='M16 12h2M18 7v10M18 7h.5M18 17h.5'/><path d='M21.25 7h.01M21.25 12h.01M21.25 17h.01' stroke-width='3.5'/></svg></span><span class="tile" style="width:56px;height:56px"><svg viewBox="0 0 24 24" style="width:56%;height:56%"><rect x='2' y='3.5' width='14' height='17' rx='2.5'/><circle cx='9' cy='9.5' r='2.25'/><path d='M5 17.5a4 4 0 0 1 8 0'/><path d='M16 12h2M18 7v10M18 7h.5M18 17h.5'/><path d='M21.25 7h.01M21.25 12h.01M21.25 17h.01' stroke-width='3.5'/></svg></span><span class="tile" style="width:88px;height:88px"><svg viewBox="0 0 24 24" style="width:56%;height:56%"><rect x='2' y='3.5' width='14' height='17' rx='2.5'/><circle cx='9' cy='9.5' r='2.25'/><path d='M5 17.5a4 4 0 0 1 8 0'/><path d='M16 12h2M18 7v10M18 7h.5M18 17h.5'/><path d='M21.25 7h.01M21.25 12h.01M21.25 17h.01' stroke-width='3.5'/></svg></span><span class="glyph"><svg viewBox="0 0 24 24" width="16" height="16"><rect x='2' y='3.5' width='14' height='17' rx='2.5'/><circle cx='9' cy='9.5' r='2.25'/><path d='M5 17.5a4 4 0 0 1 8 0'/><path d='M16 12h2M18 7v10M18 7h.5M18 17h.5'/><path d='M21.25 7h.01M21.25 12h.01M21.25 17h.01' stroke-width='3.5'/></svg><svg viewBox="0 0 24 24" width="20" height="20"><rect x='2' y='3.5' width='14' height='17' rx='2.5'/><circle cx='9' cy='9.5' r='2.25'/><path d='M5 17.5a4 4 0 0 1 8 0'/><path d='M16 12h2M18 7v10M18 7h.5M18 17h.5'/><path d='M21.25 7h.01M21.25 12h.01M21.25 17h.01' stroke-width='3.5'/></svg><svg viewBox="0 0 24 24" width="24" height="24"><rect x='2' y='3.5' width='14' height='17' rx='2.5'/><circle cx='9' cy='9.5' r='2.25'/><path d='M5 17.5a4 4 0 0 1 8 0'/><path d='M16 12h2M18 7v10M18 7h.5M18 17h.5'/><path d='M21.25 7h.01M21.25 12h.01M21.25 17h.01' stroke-width='3.5'/></svg><svg viewBox="0 0 24 24" width="48" height="48"><rect x='2' y='3.5' width='14' height='17' rx='2.5'/><circle cx='9' cy='9.5' r='2.25'/><path d='M5 17.5a4 4 0 0 1 8 0'/><path d='M16 12h2M18 7v10M18 7h.5M18 17h.5'/><path d='M21.25 7h.01M21.25 12h.01M21.25 17h.01' stroke-width='3.5'/></svg></span></div>
+  <div class="row"><span class="label">logo</span><img src="matcontacthub-logo-dark.svg" height="40" alt=""><img src="matcontacthub-logo-dark.svg" height="80" alt=""></div>
+</section>
+</body></html>
