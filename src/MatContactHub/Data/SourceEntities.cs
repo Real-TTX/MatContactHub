@@ -64,6 +64,12 @@ public sealed class DataSource : SoftEntity
     /// <summary>Synchronise every this many minutes; 0 = only by hand.</summary>
     public int IntervalMinutes { get; set; } = 60;
 
+    /// <summary>The longest <see cref="SettingsJson"/> (the column).</summary>
+    public const int SettingsJsonMaxLength = 20000;
+
+    /// <summary>The longest <see cref="SecretProtected"/> (the column).</summary>
+    public const int SecretProtectedMaxLength = 8000;
+
     /// <summary>The settings of the kind that are no secret (JSON).</summary>
     public string SettingsJson { get; set; } = "{}";
 
@@ -83,6 +89,9 @@ public sealed class DataSource : SoftEntity
     public DateTime? NextRunDate { get; set; }
 
     public string? LastError { get; set; }
+
+    /// <summary>The fields the source was last seen with (a JSON array of names, from the preview and the sync): the suggestions of the mapping.</summary>
+    public string? DiscoveredFields { get; set; }
 
     public List<FieldMapping> Mappings { get; set; } = [];
 }

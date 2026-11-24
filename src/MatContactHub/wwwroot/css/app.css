@@ -172,3 +172,20 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
   .md-contacts .mat-table tbody td.mat-table__select { grid-column: 1; grid-row: 1 / span 6; width: auto; padding-top: 4px; }
   .md-contacts .md-numbers { flex-direction: row; flex-wrap: wrap; gap: var(--mat-space-1) var(--mat-space-4); padding-left: calc(26px + var(--mat-space-3)); }
 }
+
+/* an inline md-field (a cell of a table whose column names it): its label is for the screen reader only, an empty error takes no room */
+.md-field--inline > .mat-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.md-field--inline > .mat-error:empty { min-height: 0; }
+
+/* ---- Sources (module B) ------------------------------------------------------------------------------------------- */
+/* a time stamp as the value of a key figure: smaller than a number */
+.md-sources-stat-text { font-size: var(--mat-fs-md); }
+/* the help under the key field of the mapping */
+.md-sources-help { margin: 0; }
+/* the source of a mapping line fills its cell; the transform keeps a readable width */
+.md-sources-expression { width: 100%; min-width: 12rem; }
+.md-sources-transform { min-width: 11rem; }
+/* a value of the preview: a long one breaks, the table scrolls sideways */
+.md-sources-cell { max-width: 24rem; overflow-wrap: anywhere; }
+/* the message of a run: its lines as written, wrapped */
+.md-sources-message { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--mat-fs-sm); }

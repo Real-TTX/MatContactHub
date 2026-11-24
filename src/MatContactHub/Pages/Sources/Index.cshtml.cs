@@ -7,8 +7,9 @@ using Microsoft.AspNetCore.Mvc;
 namespace MatContactHub.Pages.Sources;
 
 /// <summary>
-/// The data sources (administrators; module B owns it; FOUNDATION PLACEHOLDER: a list with search, the filters kind and last run, sort, pager and "Sync all"; the run
-/// detail follows). The data sources are few, so the page filters the list of <see cref="DataSourceService.ListAsync"/> in memory.
+/// The data sources (administrators; module B): a list with search, the filters kind and state, sort, pager, the state of every source (running, waiting, the
+/// last run), "Sync now" per line and "Sync all" (both checked in <see cref="DataSourceService"/>). The data sources are few, so the page filters the list of
+/// <see cref="DataSourceService.ListAsync"/> in memory.
 /// </summary>
 public sealed class IndexModel(AppDbContext db, SyncQueue queue) : AppPageModel
 {
@@ -74,7 +75,7 @@ public sealed class IndexModel(AppDbContext db, SyncQueue queue) : AppPageModel
             [
                 new FilterField("kind", Text.T("Sources.Col.Kind"), [.. Enum.GetValues<DataSourceKind>().Select(x => new FilterOption(x.ToString(), Text.T("Sources.Kind." + x)))],
                     kind?.ToString()),
-                new FilterField("state", Text.T("Sources.Col.LastRun"), [.. Enum.GetValues<SyncState>().Select(x => new FilterOption(x.ToString(), Text.T("Sources.State." + x)))],
+                new FilterField("state", Text.T("Sources.Col.State"), [.. Enum.GetValues<SyncState>().Select(x => new FilterOption(x.ToString(), Text.T("Sources.State." + x)))],
                     state?.ToString()),
             ],
             SortOptions = [new("name", Text.T("Common.Name")), new("addressbook", Text.T("Contacts.Col.AddressBook")), new("lastrun", Text.T("Sources.Col.LastRun")),
@@ -90,9 +91,28 @@ public sealed class IndexModel(AppDbContext db, SyncQueue queue) : AppPageModel
         Pager = new PagerModel { Page = page, PageSize = PageSize, Total = matching.Count, Url = Toolbar.UrlWithPage };
     }
 
+    public bool IsRunning(long id) => queue.IsRunning(id);
+
+    public bool IsWaiting(long id) => queue.IsWaiting(id);
+
+    public async Task<IActionResult> OnPostSyncAsync(long id)
+    {
+        if (!(await DataSourceService.RequestSyncAsync(db, Actor.ForUser(Me), queue, id, HttpContext.RequestAborted)).Ok)
+        {
+            return NotFound();
+        }
+
+        Flash(Text.T("Sources.SyncRequested"));
+        return LocalRedirect("/Sources");
+    }
+
     public IActionResult OnPostSyncAll()
     {
-        queue.RequestAll();
+        if (!DataSourceService.RequestSyncAll(Actor.ForUser(Me), queue).Ok)
+        {
+            return NotFound();
+        }
+
         Flash(Text.T("Sources.SyncRequested"));
         return LocalRedirect("/Sources");
     }

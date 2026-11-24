@@ -12,9 +12,11 @@ public sealed record Choice(string Value, string Label, string? Hint = null, str
 /// <summary>
 /// The one code base of a form field (label above, hint below, the error at the field): <c>&lt;md-field name="Title" label="Title" required /&gt;</c>.
 /// The kinds: text, email, password, number, url, tel, search, textarea, select (the native one, for six choices and more), radios (up to five exclusive choices, FORM-12),
-/// picker (the toolkit's select with a search), date and time (the toolkit's pickers, FORM-15: never a native or a text field for them), tags, colour, switch, check, otp (a code input).
+/// picker (the toolkit's select with a search), date and time (the toolkit's pickers, FORM-15: never a native or a text field for them), tags, colour, switch, check, otp (a code input),
+/// file (the toolkit's upload, <c>accept</c> and <c>max-size</c>).
 /// An optional date or time can be cleared. The message of the server (<c>ModelState</c>) is shown at the field, and the id of a field is its name, so the
 /// summary at the top of the form can link to it. A field can depend on another (<c>show-if="#Kind"</c> <c>show-value="Link"</c>): it is only shown when it is needed.
+/// An <c>inline</c> field (a cell of a table whose column names it) hides its label from the eye; the screen reader and the toolkit's pickers still read it.
 /// </summary>
 [HtmlTargetElement("md-field", TagStructure = TagStructure.WithoutEndTag)]
 public sealed class FieldTagHelper : TagHelper
@@ -56,7 +58,22 @@ public sealed class FieldTagHelper : TagHelper
 
     [HtmlAttributeName("pattern")] public string? Pattern { get; set; }
 
+    /// <summary>The id of a <c>&lt;datalist&gt;</c> of suggestions for a text field (the field stays free: a suggestion is not a must).</summary>
+    [HtmlAttributeName("list")] public string? List { get; set; }
+
     [HtmlAttributeName("options")] public IEnumerable<Choice>? Options { get; set; }
+
+    /// <summary>No visible label (a cell of a table): the label is there for the screen reader only.</summary>
+    [HtmlAttributeName("inline")] public bool Inline { get; set; }
+
+    /// <summary>A class of the field's wrapper (its width in a table, say).</summary>
+    [HtmlAttributeName("css")] public string? CssClass { get; set; }
+
+    /// <summary>The file types of a file field (<c>.csv,text/csv</c>).</summary>
+    [HtmlAttributeName("accept")] public string? Accept { get; set; }
+
+    /// <summary>The largest file of a file field, as the toolkit reads it (<c>100MB</c>).</summary>
+    [HtmlAttributeName("max-size")] public string? MaxSize { get; set; }
 
     [HtmlAttributeName("full")] public bool Full { get; set; }
 
@@ -100,7 +117,7 @@ public sealed class FieldTagHelper : TagHelper
         }
 
         var sb = new StringBuilder();
-        var cls = "mat-field" + (Full ? " mat-field--full" : string.Empty) + (error is null ? string.Empty : " is-invalid");
+        var cls = "mat-field" + (Full ? " mat-field--full" : string.Empty) + (Inline ? " md-field--inline" : string.Empty) + (CssClass is null ? string.Empty : " " + E(CssClass)) + (error is null ? string.Empty : " is-invalid");
         sb.Append($"<div class=\"{cls}\"");
         if (ShowIf is not null)
         {
@@ -191,7 +208,7 @@ public sealed class FieldTagHelper : TagHelper
         var name = E(Name);
         string Attr(string key, string? v) => v is null ? string.Empty : $" {key}=\"{E(v)}\"";
         var limits = Attr("maxlength", MaxLength?.ToString()) + Attr("minlength", MinLength?.ToString()) + Attr("min", Min) + Attr("max", Max) + Attr("step", Step) + Attr("pattern", Pattern)
-                     + Attr("placeholder", Placeholder) + Attr("autocomplete", Autocomplete) + Attr("inputmode", InputMode);
+                     + Attr("placeholder", Placeholder) + Attr("autocomplete", Autocomplete) + Attr("inputmode", InputMode) + Attr("list", List);
 
         switch (Kind)
         {
@@ -238,6 +255,11 @@ public sealed class FieldTagHelper : TagHelper
                 }
 
                 sb.Append("</div>");
+                break;
+            case "file":
+                // a file is never filled in again: the hint names the one that is there
+                sb.Append($"<div class=\"mat-upload\" data-upload data-max-files=\"1\"{Attr("data-max-size", MaxSize)}>");
+                sb.Append($"<input class=\"mat-upload__input\" type=\"file\" id=\"{id}\" name=\"{name}\"{Attr("accept", Accept)}{common} /></div>");
                 break;
             case "otp":
                 sb.Append($"<div class=\"mat-otp mat-otp--lg mat-otp--center\" data-otp data-length=\"6\" data-chars=\"digits\"><input class=\"mat-otp__input\" id=\"{id}\" name=\"{name}\" inputmode=\"numeric\" autocomplete=\"one-time-code\" pattern=\"[0-9]{{6}}\" data-msg-pattern=\"The code has six digits.\"{common} /></div>");

@@ -1,0 +1,74 @@
+@page "/Sources/Run"
+@model MatContactHub.Pages.Sources.RunModel
+@{
+    var r = Model.Run;
+    var started = Dates.Stamp(r.StartDate, Model.Zone);
+    ViewData["Title"] = L["Sources.Run.Title", started].Value;
+    ViewData["PageSub"] = r.DataSource;
+    ViewData["Crumbs"] = new List<(string, string?)>
+    {
+        (L["Admin.Title"].Value, null), (L["Sources.Title"].Value, "/Sources"), (r.DataSource, EditModel.Address(r.DataSourceId, "general")),
+        (L["Sources.Tab.runs"].Value, EditModel.Address(r.DataSourceId, "runs")), (started, null),
+    };
+    var back = EditModel.Address(r.DataSourceId, "runs");
+}
+
+@if (r.State == SyncState.Running)
+{
+    <div class="mat-alert mat-alert--info" role="status">
+        @Ui.Icon("refresh")
+        <div class="mat-alert__body">@L["Sources.Run.Running"]</div>
+        <div class="mat-alert__actions"><a class="mat-btn mat-btn--secondary mat-btn--sm" href="/Sources/Run?id=@r.Id">@Ui.Icon("refresh")<span>@L["Sources.Run.Refresh"]</span></a></div>
+    </div>
+}
+
+<div class="mat-stats">
+    <div class="mat-stat">@Ui.Icon("download", "mat-stat__icon")<span class="mat-stat__label">@L["Sources.Col.Read"]</span><span class="mat-stat__value">@DataSourceService.Count(r.RecordsRead)</span></div>
+    <div class="mat-stat mat-stat--success">@Ui.Icon("plus", "mat-stat__icon")<span class="mat-stat__label">@L["Sources.Col.Created"]</span><span class="mat-stat__value">@DataSourceService.Count(r.Created)</span></div>
+    <div class="mat-stat mat-stat--info">@Ui.Icon("edit", "mat-stat__icon")<span class="mat-stat__label">@L["Sources.Col.Updated"]</span><span class="mat-stat__value">@DataSourceService.Count(r.Updated)</span></div>
+    <div class="mat-stat">@Ui.Icon("check", "mat-stat__icon")<span class="mat-stat__label">@L["Sources.Col.Unchanged"]</span><span class="mat-stat__value">@DataSourceService.Count(r.Unchanged)</span></div>
+    <div class="mat-stat @(r.Deleted > 0 ? "mat-stat--warning" : "")">@Ui.Icon("trash", "mat-stat__icon")<span class="mat-stat__label">@L["Sources.Col.Deleted"]</span><span class="mat-stat__value">@DataSourceService.Count(r.Deleted)</span></div>
+    <div class="mat-stat @(r.Skipped > 0 ? "mat-stat--warning" : "")">@Ui.Icon("minus", "mat-stat__icon")<span class="mat-stat__label">@L["Sources.Col.Skipped"]</span><span class="mat-stat__value">@DataSourceService.Count(r.Skipped)</span></div>
+</div>
+
+<div class="mat-cols">
+    <div class="mat-col-12 mat-col-lg-5">
+        <div class="mat-card">
+            <div class="mat-card__head"><h2 class="mat-card__title">@Ui.Icon("info")@L["Sources.Run.Details"]</h2></div>
+            <div class="mat-card__body">
+                <dl class="mat-kv">
+                    <dt>@L["Sources.Col.State"]</dt><dd><partial name="_State" model="r.State" /></dd>
+                    <dt>@L["Sources.Col.Trigger"]</dt><dd>@L["Sources.Trigger." + r.Trigger]</dd>
+                    <dt>@L["Sources.Col.Start"]</dt><dd class="mat-mono">@started</dd>
+                    <dt>@L["Sources.Col.End"]</dt><dd class="mat-mono">@(r.EndDate is { } end ? Dates.Stamp(end, Model.Zone) : "–")</dd>
+                    <dt>@L["Sources.Col.Duration"]</dt><dd class="mat-mono">@(RunModel.Duration(r.StartDate, r.EndDate) is { Length: > 0 } d ? d : "–")</dd>
+                    <dt>@L["Sources.Run.Id"]</dt><dd class="mat-mono md-path">@r.Token</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+    <div class="mat-col-12 mat-col-lg-7">
+        <div class="mat-card">
+            <div class="mat-card__head"><h2 class="mat-card__title">@Ui.Icon("message-square")@L["Sources.Run.Message"]</h2></div>
+            <div class="mat-card__body">
+                @if (string.IsNullOrWhiteSpace(r.Message))
+                {
+                    <p class="md-muted">@L["Sources.Run.NoMessage"]</p>
+                }
+                else
+                {
+                    <pre class="md-sources-message mat-mono">@r.Message</pre>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<form method="post" asp-page-handler="Cancel" asp-route-id="@r.Id">
+    <md-buttons back="@back">
+        @if (Model.CanCancel)
+        {
+            <button type="submit" class="mat-btn mat-btn--secondary md-btn-collapse" data-confirm="@L["Sources.Cancel.Confirm"]" data-confirm-ok="@L["Sources.Cancel"]" aria-label="@L["Sources.Cancel"]" data-tip="@L["Sources.Cancel"]">@Ui.Icon("stop")<span>@L["Sources.Cancel"]</span></button>
+        }
+    </md-buttons>
+</form>

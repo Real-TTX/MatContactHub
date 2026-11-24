@@ -20,28 +20,69 @@
     {
         <md-table caption="@L["Sources.Title"]">
             <thead>
-                <tr><th scope="col">@L["Common.Name"]</th><th scope="col" class="mat-hide-sm">@L["Sources.Col.Kind"]</th><th scope="col" class="mat-hide-sm">@L["Contacts.Col.AddressBook"]</th><th scope="col" class="mat-num">@L["Contacts.Title"]</th><th scope="col">@L["Sources.Col.LastRun"]</th><th scope="col"><span class="mat-sr-only">@L["Common.Actions"]</span></th></tr>
+                <tr>
+                    <th scope="col">@L["Common.Name"]</th><th scope="col" class="mat-hide-sm">@L["Sources.Col.Kind"]</th><th scope="col" class="mat-hide-sm">@L["Contacts.Col.AddressBook"]</th>
+                    <th scope="col" class="mat-num">@L["Contacts.Title"]</th><th scope="col">@L["Sources.Col.State"]</th><th scope="col" class="mat-hide-sm">@L["Sources.NextRun"]</th>
+                    <th scope="col"><span class="mat-sr-only">@L["Common.Actions"]</span></th>
+                </tr>
             </thead>
             <tbody>
                 @foreach (var s in Model.Items)
                 {
+                    var running = Model.IsRunning(s.Id);
+                    var waiting = !running && Model.IsWaiting(s.Id);
                     <tr>
-                        <td data-label="@L["Common.Name"]"><a href="/Sources/Edit?id=@s.Id">@s.Name</a>@if (!s.Enabled) { <small class="md-muted md-block-line">@L["Sources.Disabled"]</small> }</td>
+                        <td class="mat-table__primary" data-label="@L["Common.Name"]">
+                            <div class="mat-table__name"><a href="/Sources/Edit?id=@s.Id">@s.Name</a></div>
+                            @if (!s.Enabled)
+                            {
+                                <small class="md-muted md-block-line">@L["Sources.Disabled"]</small>
+                            }
+                        </td>
                         <td data-label="@L["Sources.Col.Kind"]" class="mat-hide-sm">@L["Sources.Kind." + s.Kind]</td>
                         <td data-label="@L["Contacts.Col.AddressBook"]" class="mat-hide-sm">@s.AddressBook</td>
-                        <td data-label="@L["Contacts.Title"]" class="mat-num mat-mono">@s.Contacts.ToString("N0")</td>
-                        <td data-label="@L["Sources.Col.LastRun"]">
-                            @if (s.LastRunDate is { } last)
+                        <td data-label="@L["Contacts.Title"]" class="mat-num mat-mono mat-table__keep-label">@DataSourceService.Count(s.Contacts)</td>
+                        <td data-label="@L["Sources.Col.State"]" class="mat-table__keep-label">
+                            @if (running)
                             {
-                                <span class="mat-pill @(s.LastRunState == SyncState.Succeeded ? "mat-pill--ok" : s.LastRunState == SyncState.Failed ? "mat-pill--error" : "mat-pill--plain")">@L["Sources.State." + s.LastRunState]</span>
-                                <small class="md-muted md-block-line mat-mono">@Dates.Stamp(last, Model.Zone)</small>
+                                <partial name="_State" model="SyncState.Running" />
+                            }
+                            else if (waiting)
+                            {
+                                <span class="mat-pill mat-pill--info">@L["Sources.State.Waiting"]</span>
+                            }
+                            else if (s.LastRunState is { } state)
+                            {
+                                <span data-tip="@(state == SyncState.Failed ? s.LastError : null)"><partial name="_State" model="state" /></span>
                             }
                             else
                             {
-                                @L["Common.Never"]
+                                <span class="mat-pill mat-pill--plain">@L["Common.Never"]</span>
+                            }
+                            @if (s.LastRunDate is { } last)
+                            {
+                                <small class="md-muted md-block-line mat-mono">@Dates.Stamp(last, Model.Zone)</small>
                             }
                         </td>
-                        <td class="mat-table__cell-actions"><div class="mat-table__actions"><a class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" href="/Sources/Edit?id=@s.Id" aria-label="@L["Common.EditNamed", s.Name]" data-tip="@L["Common.Edit"]">@Ui.Icon("edit")</a></div></td>
+                        <td data-label="@L["Sources.NextRun"]" class="mat-hide-sm">
+                            @if (s.Enabled && s.NextRunDate is { } next)
+                            {
+                                <span class="mat-mono">@Dates.Stamp(next, Model.Zone)</span>
+                            }
+                            else
+                            {
+                                <span class="md-muted">@L["Sources.NextRun.Manual"]</span>
+                            }
+                        </td>
+                        <td class="mat-table__cell-actions">
+                            <div class="mat-table__actions">
+                                <form method="post" asp-page-handler="Sync" asp-route-id="@s.Id">
+                                    <button type="submit" class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" aria-label="@L["Sources.SyncNamed", s.Name]" data-tip="@L["Sources.SyncNow"]" disabled="@(running || waiting)">@Ui.Icon("refresh")</button>
+                                </form>
+                                <a class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" href="/Sources/Edit?id=@s.Id&tab=runs" aria-label="@L["Sources.RunsNamed", s.Name]" data-tip="@L["Sources.Tab.runs"]">@Ui.Icon("activity")</a>
+                                <a class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" href="/Sources/Edit?id=@s.Id" aria-label="@L["Common.EditNamed", s.Name]" data-tip="@L["Common.Edit"]">@Ui.Icon("edit")</a>
+                            </div>
+                        </td>
                     </tr>
                 }
             </tbody>
