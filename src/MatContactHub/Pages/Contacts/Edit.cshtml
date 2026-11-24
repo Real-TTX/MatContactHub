@@ -1,36 +1,157 @@
 @page "/Contacts/Edit"
 @model MatContactHub.Pages.Contacts.EditModel
 @{
-    var name = Model.IsNew ? L["Contacts.New"].Value : Model.DisplayName;
-    ViewData["Title"] = name;
-    ViewData["Crumbs"] = new List<(string, string?)> { (L["Contacts.Title"].Value, "/Contacts"), (Model.IsNew ? L["Common.New"].Value : Model.DisplayName, null) };
+    ViewData["Title"] = Model.Title;
+    ViewData["Crumbs"] = new List<(string, string?)> { (L["Contacts.Title"].Value, "/Contacts"), (Model.IsNew ? L["Common.New"].Value : Model.Title, null) };
     ViewData["NavKey"] = "contacts";
-    ViewData["Width"] = "narrow";
+    var f = Model.Form;
     var locked = !Model.CanEdit;
+    var d = Model.Detail;
 }
 
-<form class="mat-form" method="post" novalidate>
+<form class="mat-form" method="post" novalidate data-contact-form>
+    <input type="hidden" name="Tab" value="@Model.Tab" data-panel-tab />
     <partial name="_FormSummary" model="ViewData.ModelState" />
+
+    @if (d is not null)
+    {
+        <div class="mat-card md-contact-card">
+            <div class="mat-card__body md-contact-head">
+                @ContactView.Avatar(d.Name, d.AddressBookColor, "lg")
+                <div class="md-contact-head__text">
+                    <strong class="md-contact-head__name">@d.Name</strong>
+                    @{ var line = string.Join(" · ", new[] { d.Form.JobTitle, d.Form.Department, d.Form.Company }.Where(x => !string.IsNullOrWhiteSpace(x))); }
+                    @if (line.Length > 0) { <span class="md-muted">@line</span> }
+                    <span class="md-pills">
+                        <span class="mat-pill mat-pill--plain">@if (d.AddressBookColor is not null) { <span class="mat-dot" data-colour="@d.AddressBookColor" aria-hidden="true"></span> }@d.AddressBook</span>
+                        @if (d.Synced) { <span class="mat-pill mat-pill--info">@Ui.Icon("database")<span>@(d.SourceName ?? L["Contacts.Origin.Synced"].Value)</span></span> }
+                        @if (d.Form.Hidden) { <span class="mat-pill mat-pill--warn">@Ui.Icon("eye-off")<span>@L["Contacts.Hidden"]</span></span> }
+                    </span>
+                </div>
+                <div class="md-contact-head__links">
+                    @foreach (var number in new[] { d.Form.PhoneBusiness, d.Form.PhoneMobile }.Where(n => ContactView.Tel(n) is not null))
+                    {
+                        <a class="mat-btn mat-btn--secondary mat-btn--sm" href="@ContactView.Tel(number)">@Ui.Icon(number == d.Form.PhoneMobile ? "smartphone" : "briefcase")<span class="mat-mono">@number</span></a>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(d.Form.Email))
+                    {
+                        <a class="mat-btn mat-btn--secondary mat-btn--sm" href="mailto:@d.Form.Email">@Ui.Icon("mail")<span>@d.Form.Email</span></a>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+
     @if (Model.Synced)
     {
         <div class="mat-alert mat-alert--info" role="status">
             @Ui.Icon("info")
-            <div class="mat-alert__body">@L["Contacts.Synced.Text", Model.SourceName ?? string.Empty]</div>
+            <div class="mat-alert__body">@L[Model.CanChangeHidden ? "Contacts.Synced.Text" : "Contacts.Synced.TextViewer", d!.SourceName ?? L["Contacts.Origin.Synced"].Value]</div>
         </div>
     }
-    <div class="mat-card">
-        <div class="mat-card__body mat-form">
-            <md-field name="AddressBookId" kind="select" label="@L["Contacts.Col.AddressBook"]" value="@Model.AddressBookId" options="Model.AddressBooks" disabled="@locked" />
-            <md-field name="FirstName" label="@L["Contacts.FirstName"]" value="@Model.FirstName" maxlength="100" optional disabled="@locked" />
-            <md-field name="LastName" label="@L["Contacts.LastName"]" value="@Model.LastName" maxlength="100" optional disabled="@locked" />
-            <md-field name="DisplayName" label="@L["Contacts.DisplayName"]" value="@Model.DisplayName" maxlength="255" optional disabled="@locked" hint="@L["Contacts.DisplayName.Hint"]" />
-            <md-field name="Company" label="@L["Contacts.Col.Company"]" value="@Model.Company" maxlength="255" optional disabled="@locked" />
-            <md-field name="Email" kind="email" label="@L["Contacts.Col.Email"]" value="@Model.Email" maxlength="254" optional disabled="@locked" />
-            <md-field name="PhoneBusiness" kind="tel" label="@L["Contacts.PhoneBusiness"]" value="@Model.PhoneBusiness" maxlength="64" optional disabled="@locked" />
-            <md-field name="PhoneMobile" kind="tel" label="@L["Contacts.PhoneMobile"]" value="@Model.PhoneMobile" maxlength="64" optional disabled="@locked" />
-            <md-field name="Hidden" kind="switch" label="@L["Contacts.Hidden"]" value="@Model.Hidden.ToString()" hint="@L["Contacts.Hidden.Hint"]" disabled="@(!Model.CanChangeHidden)" />
+    else if (!Model.IsNew && !Model.CanEdit)
+    {
+        <div class="mat-alert mat-alert--info" role="status">
+            @Ui.Icon("info")
+            <div class="mat-alert__body">@L["Contacts.ReadOnly"]</div>
         </div>
-    </div>
-    @* a viewer only looks: no switch to change and no Save *@
-    <md-buttons save="@(Model.CanChangeHidden ? L["Common.Save"].Value : null)" back="/Contacts" delete-handler="@(Model.IsNew || !Model.CanEdit ? null : "Delete")" delete-confirm="@L["Contacts.DeleteConfirm", Model.DisplayName]" />
+    }
+
+    <md-panels id="contact" label="@L["Contacts.Tabs"]" active="@Model.Tab">
+        <md-panel key="general" title="@L["Contacts.Tab.General"]" icon="user">
+            <div class="mat-card"><div class="mat-card__body mat-form mat-form__grid">
+                <md-field name="Form.AddressBookId" kind="select" label="@L["Contacts.Col.AddressBook"]" value="@f.AddressBookId" options="Model.AddressBooks" disabled="@locked" full />
+                <md-field name="Form.Salutation" label="@L["Contacts.Field.Salutation"]" value="@f.Salutation" maxlength="50" optional disabled="@locked" autocomplete="off" />
+                <md-field name="Form.Title" label="@L["Contacts.Field.Title"]" value="@f.Title" maxlength="50" optional disabled="@locked" autocomplete="off" hint="@L["Contacts.Field.Title.Hint"]" />
+                <md-field name="Form.FirstName" label="@L["Contacts.Field.FirstName"]" value="@f.FirstName" maxlength="100" optional disabled="@locked" autocomplete="off" autofocus="@Model.IsNew" />
+                <md-field name="Form.MiddleName" label="@L["Contacts.Field.MiddleName"]" value="@f.MiddleName" maxlength="100" optional disabled="@locked" autocomplete="off" />
+                <md-field name="Form.LastName" label="@L["Contacts.Field.LastName"]" value="@f.LastName" maxlength="100" optional disabled="@locked" autocomplete="off" />
+                <md-field name="Form.DisplayName" label="@L["Contacts.Field.DisplayName"]" value="@f.DisplayName" maxlength="255" optional disabled="@locked" autocomplete="off" hint="@L["Contacts.DisplayName.Hint"]" />
+                <md-field name="Form.Company" label="@L["Contacts.Field.Company"]" value="@f.Company" maxlength="255" optional disabled="@locked" autocomplete="off" />
+                <md-field name="Form.Department" label="@L["Contacts.Field.Department"]" value="@f.Department" maxlength="255" optional disabled="@locked" autocomplete="off" />
+                <md-field name="Form.JobTitle" label="@L["Contacts.Field.JobTitle"]" value="@f.JobTitle" maxlength="255" optional disabled="@locked" autocomplete="off" full />
+                <md-field name="Form.Hidden" kind="switch" label="@L["Contacts.Hidden"]" value="@f.Hidden.ToString()" hint="@L["Contacts.Hidden.Hint"]" disabled="@(!Model.CanChangeHidden)" full />
+            </div></div>
+        </md-panel>
+        <md-panel key="communication" title="@L["Contacts.Tab.Communication"]" icon="mail">
+            <div class="mat-card"><div class="mat-card__body mat-form mat-form__grid">
+                <md-field name="Form.Email" kind="email" label="@L["Contacts.Field.Email"]" value="@f.Email" maxlength="254" optional disabled="@locked" autocomplete="off" />
+                <md-field name="Form.Email2" kind="email" label="@L["Contacts.Field.Email2"]" value="@f.Email2" maxlength="254" optional disabled="@locked" autocomplete="off" />
+                <md-field name="Form.Email3" kind="email" label="@L["Contacts.Field.Email3"]" value="@f.Email3" maxlength="254" optional disabled="@locked" autocomplete="off" />
+                <md-field name="Form.Website" label="@L["Contacts.Field.Website"]" value="@f.Website" maxlength="500" optional disabled="@locked" inputmode="url" autocomplete="off" />
+                <md-field name="Form.PhoneBusiness" kind="tel" label="@L["Contacts.Field.PhoneBusiness"]" value="@f.PhoneBusiness" maxlength="64" optional disabled="@locked" mono />
+                <md-field name="Form.PhoneBusiness2" kind="tel" label="@L["Contacts.Field.PhoneBusiness2"]" value="@f.PhoneBusiness2" maxlength="64" optional disabled="@locked" mono />
+                <md-field name="Form.PhoneMobile" kind="tel" label="@L["Contacts.Field.PhoneMobile"]" value="@f.PhoneMobile" maxlength="64" optional disabled="@locked" mono />
+                <md-field name="Form.PhoneHome" kind="tel" label="@L["Contacts.Field.PhoneHome"]" value="@f.PhoneHome" maxlength="64" optional disabled="@locked" mono />
+                <md-field name="Form.PhoneOther" kind="tel" label="@L["Contacts.Field.PhoneOther"]" value="@f.PhoneOther" maxlength="64" optional disabled="@locked" mono />
+                <md-field name="Form.Fax" kind="tel" label="@L["Contacts.Field.Fax"]" value="@f.Fax" maxlength="64" optional disabled="@locked" mono />
+            </div></div>
+        </md-panel>
+        <md-panel key="address" title="@L["Contacts.Tab.Address"]" icon="home">
+            <div class="mat-card"><div class="mat-card__body mat-form mat-form__grid">
+                <md-field name="Form.Street" label="@L["Contacts.Field.Street"]" value="@f.Street" maxlength="255" optional disabled="@locked" autocomplete="off" full />
+                <md-field name="Form.PostalCode" label="@L["Contacts.Field.PostalCode"]" value="@f.PostalCode" maxlength="20" optional disabled="@locked" autocomplete="off" />
+                <md-field name="Form.City" label="@L["Contacts.Field.City"]" value="@f.City" maxlength="100" optional disabled="@locked" autocomplete="off" />
+                <md-field name="Form.State" label="@L["Contacts.Field.State"]" value="@f.State" maxlength="100" optional disabled="@locked" autocomplete="off" />
+                <md-field name="Form.Country" label="@L["Contacts.Field.Country"]" value="@f.Country" maxlength="100" optional disabled="@locked" autocomplete="off" />
+            </div></div>
+        </md-panel>
+        <md-panel key="more" title="@L["Contacts.Tab.More"]" icon="list">
+            <div class="mat-card"><div class="mat-card__body mat-form mat-form__grid">
+                <md-field name="Form.Birthday" kind="date" label="@L["Contacts.Field.Birthday"]" value="@(f.Birthday?.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture))" optional disabled="@locked" />
+                <md-field name="Form.CustomerNumber" label="@L["Contacts.Field.CustomerNumber"]" value="@f.CustomerNumber" maxlength="100" optional disabled="@locked" mono autocomplete="off" />
+                <md-field name="Form.Notes" kind="textarea" label="@L["Contacts.Field.Notes"]" value="@f.Notes" maxlength="8000" rows="5" optional disabled="@locked" full />
+                <md-field name="Form.Custom1" label="@L["Contacts.Field.Custom1"]" value="@f.Custom1" maxlength="500" optional disabled="@locked" autocomplete="off" />
+                <md-field name="Form.Custom2" label="@L["Contacts.Field.Custom2"]" value="@f.Custom2" maxlength="500" optional disabled="@locked" autocomplete="off" />
+                <md-field name="Form.Custom3" label="@L["Contacts.Field.Custom3"]" value="@f.Custom3" maxlength="500" optional disabled="@locked" autocomplete="off" />
+                <md-field name="Form.Custom4" label="@L["Contacts.Field.Custom4"]" value="@f.Custom4" maxlength="500" optional disabled="@locked" autocomplete="off" />
+                <md-field name="Form.Custom5" label="@L["Contacts.Field.Custom5"]" value="@f.Custom5" maxlength="500" optional disabled="@locked" autocomplete="off" />
+            </div></div>
+        </md-panel>
+        @if (d is not null)
+        {
+            <md-panel key="source" title="@L["Contacts.Tab.Source"]" icon="database">
+                <div class="mat-card"><div class="mat-card__body">
+                    <dl class="mat-kv">
+                        <dt>@L["Contacts.Origin"]</dt>
+                        <dd>
+                            @if (!d.Synced)
+                            {
+                                @L["Contacts.Origin.Manual"]
+                            }
+                            else if (Model.IsAdmin && d.SourceId is not null && d.SourceName is not null)
+                            {
+                                <a href="/Sources/Edit?id=@d.SourceId">@d.SourceName</a>
+                            }
+                            else
+                            {
+                                @(d.SourceName ?? L["Contacts.Origin.Deleted"].Value)
+                            }
+                        </dd>
+                        @if (d.Synced)
+                        {
+                            <dt>@L["Contacts.ExternalKey"]</dt><dd class="mat-mono md-path">@d.ExternalKey</dd>
+                            <dt>@L["Contacts.LastSync"]</dt><dd>@(d.LastSyncDate is { } sync ? Dates.Stamp(sync, Model.Zone) : L["Common.Never"].Value)</dd>
+                        }
+                        <dt>@L["Contacts.Col.AddressBook"]</dt><dd>@d.AddressBook</dd>
+                        <dt>@L["Contacts.Uid"]</dt><dd><span class="mat-mono md-path">@d.Token</span> <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" data-copy="@d.Token" aria-label="@L["Common.Copy"]" data-tip="@L["Common.Copy"]">@Ui.Icon("copy")</button></dd>
+                        <dt>@L["Contacts.Created"]</dt><dd>@Dates.Stamp(d.Created, Model.Zone)</dd>
+                        <dt>@L["Contacts.Col.Changed"]</dt><dd>@Dates.Stamp(d.Changed, Model.Zone)</dd>
+                    </dl>
+                </div></div>
+            </md-panel>
+        }
+    </md-panels>
+
+    @* a viewer only looks: no Save; Export for everybody who sees the contact; Delete only for a manual contact of an editor *@
+    <md-buttons save="@(Model.CanChangeHidden ? L["Common.Save"].Value : null)" back="/Contacts" delete-handler="@(Model.IsNew || !Model.CanEdit ? null : "Delete")" delete-confirm="@L["Contacts.DeleteConfirm", Model.Title]">
+        @if (!Model.IsNew)
+        {
+            <a class="mat-btn mat-btn--secondary md-btn-collapse" href="/Contacts/Edit?id=@Model.Id&amp;handler=Export" aria-label="@L["Contacts.Export.VCard"]" data-tip="@L["Contacts.Export.VCard"]">@Ui.Icon("download")<span>@L["Contacts.Export.VCard"]</span></a>
+        }
+    </md-buttons>
 </form>
+
+@section Scripts {
+    <script src="~/js/contacts.js" asp-append-version="true"></script>
+}

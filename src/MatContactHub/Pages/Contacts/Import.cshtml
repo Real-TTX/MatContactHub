@@ -1,0 +1,103 @@
+@page "/Contacts/Import"
+@model MatContactHub.Pages.Contacts.ImportModel
+@{
+    ViewData["Title"] = L["Contacts.Import"].Value;
+    ViewData["Crumbs"] = new List<(string, string?)> { (L["Contacts.Title"].Value, "/Contacts"), (L["Contacts.Import"].Value, null) };
+    ViewData["NavKey"] = "contacts";
+    var p = Model.Preview;
+    ModelState.TryGetValue(nameof(Model.Upload), out var fileState);
+    var fileError = fileState?.Errors.FirstOrDefault()?.ErrorMessage;
+}
+
+@if (p is null)
+{
+    <form class="mat-form" method="post" asp-page-handler="Preview" enctype="multipart/form-data" novalidate>
+        <partial name="_FormSummary" model="ViewData.ModelState" />
+        <div class="mat-card">
+            <div class="mat-card__head"><h2 class="mat-card__title">@Ui.Icon("upload")@L["Contacts.Import.File"]</h2></div>
+            <div class="mat-card__body mat-form">
+                <p class="md-muted">@L["Contacts.Import.Intro"]</p>
+                <div class="mat-field @(fileError is null ? "" : "is-invalid")">
+                    <label class="mat-label" for="Upload">@L["Contacts.Import.File"] <span class="mat-req" aria-hidden="true">*</span></label>
+                    <div class="mat-upload" data-upload data-max-size="10MB">
+                        <input class="mat-upload__input" type="file" id="Upload" name="Upload" accept=".vcf,.vcard,.csv,.txt,text/vcard,text/csv" required data-msg-required="@L["Contacts.Import.NoFile"]" aria-describedby="Upload-hint Upload-error" />
+                    </div>
+                    <span class="mat-hint" id="Upload-hint">@L["Contacts.Import.File.Hint"]</span>
+                    <span class="mat-error" id="Upload-error" aria-live="polite">@fileError</span>
+                </div>
+                <md-field name="AddressBookId" kind="select" label="@L["Contacts.Col.AddressBook"]" value="@Model.AddressBookId" options="Model.AddressBooks" hint="@L["Contacts.Import.Book.Hint"]" />
+                <md-field name="SkipDuplicates" kind="switch" label="@L["Contacts.Import.SkipDuplicates"]" value="@Model.SkipDuplicates.ToString()" hint="@L["Contacts.Import.SkipDuplicates.Hint"]" />
+            </div>
+        </div>
+        <md-buttons save="@L["Contacts.Import.Preview"]" save-icon="eye" back="/Contacts" />
+    </form>
+}
+else
+{
+    <form class="mat-form" method="post" asp-page-handler="Import" novalidate>
+        <input type="hidden" name="Key" value="@Model.Key" />
+        <input type="hidden" name="AddressBookId" value="@Model.AddressBookId" />
+        <input type="hidden" name="SkipDuplicates" value="@Model.SkipDuplicates.ToString()" />
+
+        <div class="mat-card">
+            <div class="mat-card__head"><h2 class="mat-card__title">@Ui.Icon("file-text")@Model.FileName</h2></div>
+            <div class="mat-card__body">
+                <dl class="mat-kv">
+                    <dt>@L["Contacts.Import.Format"]</dt><dd>@(p.Format == ImportFormat.VCard ? "vCard" : "CSV")</dd>
+                    <dt>@L["Contacts.Col.AddressBook"]</dt><dd>@Model.AddressBookName</dd>
+                    <dt>@L["Contacts.Import.Records"]</dt><dd>@p.Records.ToString("N0")</dd>
+                    <dt>@L["Contacts.Import.WillCreate"]</dt><dd><strong>@((p.Records - p.Invalid - p.Duplicates).ToString("N0"))</strong></dd>
+                    @if (Model.SkipDuplicates) { <dt>@L["Contacts.Import.Duplicates"]</dt><dd>@p.Duplicates.ToString("N0")</dd> }
+                    <dt>@L["Contacts.Import.Invalid"]</dt><dd>@p.Invalid.ToString("N0")</dd>
+                </dl>
+            </div>
+        </div>
+
+        @if (p.Format == ImportFormat.Csv)
+        {
+            <section class="md-section">
+                <h2 class="md-section__title">@Ui.Icon("table")@L["Contacts.Import.Columns"]</h2>
+                <md-table caption="@L["Contacts.Import.Columns"]">
+                    <thead><tr><th scope="col">@L["Contacts.Import.Column"]</th><th scope="col">@L["Contacts.Import.Field"]</th></tr></thead>
+                    <tbody>
+                        @foreach (var c in p.Columns)
+                        {
+                            <tr>
+                                <td data-label="@L["Contacts.Import.Column"]" class="mat-mono">@c.Header</td>
+                                <td data-label="@L["Contacts.Import.Field"]">@if (c.Field is { } field) { @L["Contacts.Field." + field] } else { <span class="md-muted">@L["Contacts.Import.Ignored"]</span> }</td>
+                            </tr>
+                        }
+                    </tbody>
+                </md-table>
+            </section>
+        }
+
+        <section class="md-section">
+            <h2 class="md-section__title">@Ui.Icon("users")@L["Contacts.Import.Sample", p.Sample.Count]</h2>
+            @if (p.Sample.Count == 0)
+            {
+                <div class="mat-empty mat-empty--framed"><span class="mat-empty__icon">@Ui.Icon("users")</span><div class="mat-empty__title">@L["Contacts.Import.Nothing"]</div><p>@L["Contacts.Import.Nothing.Text"]</p></div>
+            }
+            else
+            {
+                <md-table caption="@L["Contacts.Import.Sample", p.Sample.Count]">
+                    <thead><tr><th scope="col">@L["Common.Name"]</th><th scope="col">@L["Contacts.Col.Company"]</th><th scope="col">@L["Contacts.Col.Email"]</th><th scope="col">@L["Contacts.Col.Phone"]</th><th scope="col">@L["Contacts.Field.City"]</th></tr></thead>
+                    <tbody>
+                        @foreach (var c in p.Sample)
+                        {
+                            <tr>
+                                <td data-label="@L["Common.Name"]">@ContactService.DisplayNameOf(c.DisplayName, c.FirstName, c.LastName, c.Company)</td>
+                                <td data-label="@L["Contacts.Col.Company"]">@c.Company</td>
+                                <td data-label="@L["Contacts.Col.Email"]" class="md-path">@c.Email</td>
+                                <td data-label="@L["Contacts.Col.Phone"]" class="mat-mono">@(c.PhoneBusiness ?? c.PhoneMobile ?? c.PhoneOther ?? c.PhoneHome)</td>
+                                <td data-label="@L["Contacts.Field.City"]">@c.City</td>
+                            </tr>
+                        }
+                    </tbody>
+                </md-table>
+            }
+        </section>
+
+        <md-buttons save="@(p.Records - p.Invalid - p.Duplicates > 0 ? L["Contacts.Import.Run", p.Records - p.Invalid - p.Duplicates].Value : null)" save-icon="upload" back="/Contacts/Import" />
+    </form>
+}

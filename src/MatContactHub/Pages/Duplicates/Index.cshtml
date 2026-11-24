@@ -1,8 +1,10 @@
 @page "/Duplicates"
 @model MatContactHub.Pages.Duplicates.IndexModel
+@using MatContactHub.Pages.Contacts
 @{
     ViewData["Title"] = L["Duplicates.Title"].Value;
     ViewData["NavKey"] = "duplicates";
+    string ReasonIcon(DuplicateReason r) => r switch { DuplicateReason.Phone => "smartphone", DuplicateReason.Email => "mail", _ => "user" };
 }
 
 <div class="mat-list">
@@ -18,22 +20,80 @@
     }
     else
     {
-        @foreach (var g in Model.Groups)
-        {
-            <md-table caption="@g.Key">
-                <thead><tr><th scope="col">@L["Common.Name"]</th><th scope="col" class="mat-hide-sm">@L["Contacts.Col.Company"]</th><th scope="col" class="mat-hide-sm">@L["Contacts.Col.AddressBook"]</th></tr></thead>
-                <tbody>
+        <div class="md-groups">
+            @foreach (var g in Model.Groups)
+            {
+                var keep = g.Contacts[0].Id;
+                <form class="mat-card md-group" method="post" asp-page-handler="Merge" aria-labelledby="@g.Key-title">
+                    <input type="hidden" name="returnUrl" value="@Model.Here" />
                     @foreach (var c in g.Contacts)
                     {
-                        <tr>
-                            <td data-label="@L["Common.Name"]"><a href="/Contacts/Edit?id=@c.Id">@c.DisplayName</a></td>
-                            <td data-label="@L["Contacts.Col.Company"]" class="mat-hide-sm">@c.Company</td>
-                            <td data-label="@L["Contacts.Col.AddressBook"]" class="mat-hide-sm">@c.AddressBook</td>
-                        </tr>
+                        <input type="hidden" name="ids" value="@c.Id" />
                     }
-                </tbody>
-            </md-table>
-        }
+                    <div class="mat-card__head">
+                        <h2 class="mat-card__title" id="@g.Key-title">@Ui.Icon(ReasonIcon(g.Matches.Count > 0 ? g.Matches[0].Reason : DuplicateReason.NameAndCompany))<span class="md-path">@g.Label</span></h2>
+                        <span class="md-pills">
+                            @foreach (var reason in g.Reasons)
+                            {
+                                <span class="mat-pill mat-pill--accent">@Ui.Icon(ReasonIcon(reason))<span>@L["Duplicates.Reason." + reason]</span></span>
+                            }
+                            <span class="mat-pill mat-pill--plain">@L["Duplicates.Contacts", g.Contacts.Count]</span>
+                        </span>
+                    </div>
+                    <md-table caption="@L["Duplicates.GroupCaption", g.Label]">
+                        <thead>
+                            <tr>
+                                <th scope="col">@L["Duplicates.Keep"]</th>
+                                <th scope="col">@L["Common.Name"]</th>
+                                <th scope="col">@L["Contacts.Col.Phone"]</th>
+                                <th scope="col" class="mat-hide-sm">@L["Contacts.Col.Email"]</th>
+                                <th scope="col" class="mat-hide-sm">@L["Contacts.Col.AddressBook"]</th>
+                                <th scope="col" class="mat-num mat-hide-sm">@L["Duplicates.Filled"]</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var c in g.Contacts)
+                            {
+                                <tr>
+                                    <td data-label="@L["Duplicates.Keep"]"><label class="mat-check"><input type="radio" id="keep-@g.Key-@c.Id" name="keep" value="@c.Id" checked="@(c.Id == keep)" disabled="@(!g.CanChange)" /><span class="mat-sr-only">@L["Duplicates.KeepNamed", c.DisplayName]</span></label></td>
+                                    <td data-label="@L["Common.Name"]">
+                                        <div class="mat-table__name">
+                                            @ContactView.Avatar(c.DisplayName, c.AddressBookColor)
+                                            <span class="md-contact-name">
+                                                <a href="/Contacts/Edit?id=@c.Id">@c.DisplayName</a>
+                                                @if (!string.IsNullOrWhiteSpace(c.Company)) { <small>@c.Company</small> }
+                                                <span class="md-pills">
+                                                    <span class="mat-pill @(c.Synced ? "mat-pill--info" : "mat-pill--plain")">@Ui.Icon(c.Synced ? "database" : "edit")<span>@(c.Synced ? c.SourceName ?? L["Contacts.Origin.Synced"].Value : L["Contacts.Origin.Manual"].Value)</span></span>
+                                                    @if (c.Hidden) { <span class="mat-pill mat-pill--warn">@Ui.Icon("eye-off")<span>@L["Contacts.Hidden"]</span></span> }
+                                                </span>
+                                            </span>
+                                        </div>
+                                    </td>
+                                    <td data-label="@L["Contacts.Col.Phone"]" class="mat-mono">@ContactView.PhoneLink(c.Phone)</td>
+                                    <td data-label="@L["Contacts.Col.Email"]" class="mat-hide-sm md-path">@ContactView.MailLink(c.Email)</td>
+                                    <td data-label="@L["Contacts.Col.AddressBook"]" class="mat-hide-sm"><span class="md-book">@if (c.AddressBookColor is not null) { <span class="mat-dot" data-colour="@c.AddressBookColor" aria-hidden="true"></span> }@c.AddressBook</span></td>
+                                    <td data-label="@L["Duplicates.Filled"]" class="mat-num mat-mono mat-hide-sm">@c.Filled</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </md-table>
+                    <div class="mat-card__body">
+                        @if (g.CanChange)
+                        {
+                            <div class="mat-btn-row mat-btn-row--plain">
+                                <button type="submit" class="mat-btn mat-btn--primary" data-confirm="@L["Duplicates.MergeConfirm"]" data-confirm-ok="@L["Duplicates.Merge"]">@Ui.Icon("layers")<span>@L["Duplicates.Merge"]</span></button>
+                                <button type="submit" class="mat-btn mat-btn--secondary" formaction="@MatContactHub.Controls.ButtonRowTagHelper.HandlerUrl(HttpContext.Request, "Ignore")">@Ui.Icon("x-circle")<span>@L["Duplicates.NotDuplicate"]</span></button>
+                            </div>
+                            <p class="mat-hint">@L["Duplicates.Merge.Hint"]</p>
+                        }
+                        else
+                        {
+                            <p class="mat-hint">@L["Duplicates.ReadOnly"]</p>
+                        }
+                    </div>
+                </form>
+            }
+        </div>
     }
 
     <partial name="_Pager" model="Model.Pager" />

@@ -1,3 +1,4 @@
+using System.Globalization;
 using MatContactHub.Controls;
 using MatContactHub.Data;
 using MatContactHub.Localization;
@@ -8,37 +9,35 @@ using Microsoft.AspNetCore.Mvc;
 namespace MatContactHub.Pages.Contacts;
 
 /// <summary>
-/// A contact (module C owns it; FOUNDATION PLACEHOLDER: the fields of the tab General and the main numbers; the tabs General / Communication / Address / More / Source
-/// follow). A manual contact is edited by an editor of its address book; of a synced contact only Hidden can be changed.
+/// A contact (module C) with the tabs General / Communication / Address / More / Source in one form. A manual contact is edited by an editor of its address book; of a
+/// synced contact only Hidden can be changed (the source wins), and a viewer only looks. A new contact goes into the address book of <c>?book=</c>, else the one the
+/// person used last. The buttons: Save, Back, Export (vCard), a space, Delete.
 /// </summary>
 public sealed class EditModel(AppDbContext db) : AppPageModel
 {
+    /// <summary>The tabs of the page, and which fields each has (the tab of the first error is opened).</summary>
+    public static readonly IReadOnlyDictionary<string, string[]> Tabs = new Dictionary<string, string[]>
+    {
+        ["general"] = ["AddressBookId", "Salutation", "Title", "FirstName", "MiddleName", "LastName", "DisplayName", "Company", "Department", "JobTitle", "Hidden"],
+        ["communication"] = ["Email", "Email2", "Email3", "PhoneBusiness", "PhoneBusiness2", "PhoneMobile", "PhoneHome", "PhoneOther", "Fax", "Website"],
+        ["address"] = ["Street", "PostalCode", "City", "State", "Country"],
+        ["more"] = ["Birthday", "CustomerNumber", "Notes", "Custom1", "Custom2", "Custom3", "Custom4", "Custom5"],
+        ["source"] = [],
+    };
+
     [BindProperty(SupportsGet = true)] public long? Id { get; set; }
 
-    [BindProperty] public long AddressBookId { get; set; }
+    [BindProperty] public ContactForm Form { get; set; } = new();
 
-    [BindProperty] public string FirstName { get; set; } = string.Empty;
-
-    [BindProperty] public string LastName { get; set; } = string.Empty;
-
-    [BindProperty] public string DisplayName { get; set; } = string.Empty;
-
-    [BindProperty] public string Company { get; set; } = string.Empty;
-
-    [BindProperty] public string Email { get; set; } = string.Empty;
-
-    [BindProperty] public string PhoneBusiness { get; set; } = string.Empty;
-
-    [BindProperty] public string PhoneMobile { get; set; } = string.Empty;
-
-    [BindProperty] public bool Hidden { get; set; }
+    /// <summary>The tab that is open.</summary>
+    [BindProperty(SupportsGet = true)] public string? Tab { get; set; }
 
     public bool IsNew => Id is null;
 
-    /// <summary>The contact comes from a data source: read-only but for Hidden.</summary>
-    public bool Synced { get; private set; }
+    public ContactDetail? Detail { get; private set; }
 
-    public string? SourceName { get; private set; }
+    /// <summary>The contact comes from a data source: read-only but for Hidden.</summary>
+    public bool Synced => Detail?.Synced == true;
 
     /// <summary>The person may change the fields (an editor of the address book, a manual contact).</summary>
     public bool CanEdit { get; private set; }
@@ -46,63 +45,88 @@ public sealed class EditModel(AppDbContext db) : AppPageModel
     /// <summary>The person may change Hidden and save (an editor of the address book; a viewer only looks).</summary>
     public bool CanChangeHidden { get; private set; }
 
+    public bool IsAdmin => Me.IsAdmin;
+
+    public string Zone => Me.TimeZone;
+
     public List<Choice> AddressBooks { get; private set; } = [];
 
-    public async Task<IActionResult> OnGetAsync()
+    /// <summary>The name in the head of the page and the breadcrumb.</summary>
+    public string Title => IsNew ? Text.T("Contacts.New") : Detail?.Name ?? string.Empty;
+
+    public async Task<IActionResult> OnGetAsync(long? book)
     {
+        var actor = Actor.ForUser(Me);
         if (Id is { } id)
         {
-            if (await ContactService.GetAsync(db, Actor.ForUser(Me), id, HttpContext.RequestAborted) is not { } contact)
+            if (await LoadAsync(id) is null)
             {
                 return NotFound();
             }
 
-            var f = contact.Form;
-            (AddressBookId, FirstName, LastName, DisplayName, Company, Email, PhoneBusiness, PhoneMobile, Hidden) =
-                (f.AddressBookId, f.FirstName ?? string.Empty, f.LastName ?? string.Empty, f.DisplayName ?? string.Empty, f.Company ?? string.Empty, f.Email ?? string.Empty,
-                    f.PhoneBusiness ?? string.Empty, f.PhoneMobile ?? string.Empty, f.Hidden);
-            Synced = contact.Synced;
-            SourceName = contact.SourceName;
-            CanChangeHidden = contact.Role >= AddressBookRole.Editor;
-            CanEdit = !contact.Synced && CanChangeHidden;
+            Form = Detail!.Form;
         }
-
-        await LoadAsync();
-        if (IsNew)
+        else
         {
-            if (AddressBooks.Count == 0)
+            if (await ContactService.DefaultAddressBookAsync(db, actor, book, HttpContext.RequestAborted) is not { } target)
             {
                 return NotFound();
             }
 
-            AddressBookId = long.TryParse(Request.Query["book"], out var book) && AddressBooks.Any(b => b.Value == book.ToString(System.Globalization.CultureInfo.InvariantCulture))
-                ? book
-                : long.Parse(AddressBooks[0].Value, System.Globalization.CultureInfo.InvariantCulture);
+            Form = new ContactForm { AddressBookId = target };
             CanEdit = CanChangeHidden = true;
         }
 
+        Tab = Tabs.ContainsKey(Tab ?? string.Empty) && (Tab != "source" || !IsNew) ? Tab : "general";
+        await LoadBooksAsync();
         return Page();
     }
 
     public async Task<IActionResult> OnPostAsync()
     {
-        var form = new ContactForm(AddressBookId, FirstName, LastName, DisplayName, Company, Email, PhoneBusiness, PhoneMobile, Hidden);
-        var saved = await ContactService.SaveAsync(db, Actor.ForUser(Me), Id, form, HttpContext.RequestAborted);
-        if (saved.NotAllowed)
+        var actor = Actor.ForUser(Me);
+        if (Id is { } id && await LoadAsync(id) is null)
         {
             return NotFound();
         }
 
-        if (!saved.Ok)
+        if (!Synced)
         {
-            ModelState.AddModelError(string.Empty, saved.Error!);
-            CanEdit = CanChangeHidden = true;
-            await LoadAsync();
-            return Page();
+            foreach (var error in ContactService.Validate(Form))
+            {
+                ModelState.AddModelError("Form." + error.Field, error.Message);
+            }
         }
 
-        Flash(Text.T("Common.Saved"));
-        return LocalRedirect("/Contacts");
+        if (ModelState.ErrorCount == 0)
+        {
+            var saved = await ContactService.SaveAsync(db, actor, Id, Form, HttpContext.RequestAborted);
+            if (saved.NotAllowed)
+            {
+                return NotFound();
+            }
+
+            if (saved.Ok)
+            {
+                Flash(Text.T("Common.SavedNamed", ContactService.DisplayNameOf(Form.DisplayName, Form.FirstName, Form.LastName, Form.Company)));
+                return LocalRedirect(Synced ? $"/Contacts/Edit?id={saved.Value}" : "/Contacts");
+            }
+
+            ModelState.AddModelError(string.Empty, saved.Error!);
+        }
+
+        if (IsNew)
+        {
+            CanEdit = CanChangeHidden = true;
+        }
+        else if (Synced)
+        {
+            Form = Detail!.Form;
+        }
+
+        Tab = FirstErrorTab() ?? (Tabs.ContainsKey(Tab ?? string.Empty) ? Tab : "general");
+        await LoadBooksAsync();
+        return Page();
     }
 
     public async Task<IActionResult> OnPostDeleteAsync()
@@ -117,10 +141,50 @@ public sealed class EditModel(AppDbContext db) : AppPageModel
         return LocalRedirect("/Contacts");
     }
 
-    private async Task LoadAsync()
+    /// <summary>The contact as a vCard (3.0, or 4.0 with <c>v=4</c>).</summary>
+    public async Task<IActionResult> OnGetExportAsync(int v = 3)
+    {
+        if (Id is not { } id)
+        {
+            return NotFound();
+        }
+
+        var export = await ContactService.ExportAsync(db, Actor.ForUser(Me), [id], v, HttpContext.RequestAborted);
+        return export.Count == 0 ? NotFound() : ContactView.Download(export);
+    }
+
+    /// <summary>The id of a field of the form (<c>Form_FirstName</c>).</summary>
+    public static string FieldId(string name) => "Form_" + name;
+
+    private async Task<ContactDetail?> LoadAsync(long id)
+    {
+        Detail = await ContactService.GetAsync(db, Actor.ForUser(Me), id, HttpContext.RequestAborted);
+        if (Detail is not null)
+        {
+            CanChangeHidden = Detail.Role >= AddressBookRole.Editor;
+            CanEdit = !Detail.Synced && CanChangeHidden;
+        }
+
+        return Detail;
+    }
+
+    private string? FirstErrorTab()
+    {
+        foreach (var (tab, fields) in Tabs)
+        {
+            if (fields.Any(f => ModelState.TryGetValue("Form." + f, out var state) && state.Errors.Count > 0))
+            {
+                return tab;
+            }
+        }
+
+        return null;
+    }
+
+    private async Task LoadBooksAsync()
     {
         var books = await AddressBookService.ListAsync(db, Actor.ForUser(Me), HttpContext.RequestAborted);
-        AddressBooks = [.. books.Where(b => b.Role >= AddressBookRole.Editor || b.Id == AddressBookId)
-            .Select(b => new Choice(b.Id.ToString(System.Globalization.CultureInfo.InvariantCulture), b.Name))];
+        AddressBooks = [.. books.Where(b => b.Role >= AddressBookRole.Editor || b.Id == Form.AddressBookId)
+            .Select(b => new Choice(b.Id.ToString(CultureInfo.InvariantCulture), b.Name, null, b.Color))];
     }
 }

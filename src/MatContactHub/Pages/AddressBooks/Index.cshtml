@@ -20,7 +20,7 @@
     {
         <md-table caption="@L["AddressBooks.Title"]">
             <thead>
-                <tr><th scope="col">@L["Common.Name"]</th><th scope="col" class="mat-num">@L["Contacts.Title"]</th><th scope="col" class="mat-hide-sm">@L["AddressBooks.Col.Shared"]</th><th scope="col"><span class="mat-sr-only">@L["Common.Actions"]</span></th></tr>
+                <tr><th scope="col">@L["Common.Name"]</th><th scope="col" class="mat-num">@L["Contacts.Title"]</th><th scope="col" class="mat-hide-sm">@L["AddressBooks.Access.Role"]</th><th scope="col" class="mat-num mat-hide-sm">@L["AddressBooks.Sources"]</th><th scope="col" class="mat-hide-sm">@L["AddressBooks.Col.Shared"]</th><th scope="col"><span class="mat-sr-only">@L["Common.Actions"]</span></th></tr>
             </thead>
             <tbody>
                 @foreach (var b in Model.Items)
@@ -28,9 +28,11 @@
                     <tr>
                         <td data-label="@L["Common.Name"]"><a class="md-name" href="/Contacts?book=@b.Id">@Ui.Icon("book", null, b.Color)<span>@b.Name</span></a>@if (!string.IsNullOrEmpty(b.Description)) { <small class="md-muted md-block-line">@b.Description</small> }</td>
                         <td data-label="@L["Contacts.Title"]" class="mat-num mat-mono">@b.Contacts.ToString("N0")</td>
+                        <td data-label="@L["AddressBooks.Access.Role"]" class="mat-hide-sm"><span class="mat-pill @(b.Role == AddressBookRole.Editor ? "mat-pill--ok" : "mat-pill--plain")">@L["AddressBooks.Role." + b.Role]</span></td>
+                        <td data-label="@L["AddressBooks.Sources"]" class="mat-num mat-mono mat-hide-sm">@b.Sources.ToString("N0")</td>
                         <td data-label="@L["AddressBooks.Col.Shared"]" class="mat-hide-sm">
                             <span class="md-pills">
-                                @if (b.IsShared) { <span class="mat-pill mat-pill--plain">@L["AddressBooks.Shared"]</span> }
+                                @if (b.IsShared) { <span class="mat-pill mat-pill--plain">@L["AddressBooks.Shared"]</span> } else if (b.People > 0) { <span class="mat-pill mat-pill--plain">@L["AddressBooks.PeopleCount", b.People]</span> }
                                 @if (b.LdapEnabled) { <span class="mat-pill mat-pill--accent">LDAP</span> }
                                 @if (b.AppsEnabled) { <span class="mat-pill mat-pill--plain">@L["AddressBooks.Apps"]</span> }
                             </span>
