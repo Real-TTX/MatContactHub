@@ -653,8 +653,10 @@ public sealed class LdapSession
 
         batch.Add(new LdapMessage(id, new SearchResultDone(result), responseControls));
         ct.ThrowIfCancellationRequested();
-        await SendAsync(batch, ct);
+
+        // logged before the done goes out, like a bind: a client that reads the log right after its answer finds its search there
         LogSearch(request, who, entries.Count, result, watch);
+        await SendAsync(batch, ct);
     }
 
     private void LogSearch(SearchRequest request, LdapIdentity who, int entries, LdapResult result, Stopwatch watch)
