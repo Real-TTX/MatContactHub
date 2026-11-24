@@ -109,3 +109,16 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 
 /* a placeholder of the foundation: what a module still builds */
 .md-placeholder { color: var(--mat-text-muted); }
+
+/* ---- Sources (module B) ------------------------------------------------------------------------------------------- */
+/* a time stamp as the value of a key figure: smaller than a number */
+.md-sources-stat-text { font-size: var(--mat-fs-md); }
+/* the help under the key field of the mapping */
+.md-sources-help { margin: 0; }
+/* the source of a mapping line fills its cell; the transform keeps a readable width */
+.md-sources-expression { width: 100%; min-width: 12rem; }
+.md-sources-transform { min-width: 11rem; }
+/* a value of the preview: a long one breaks, the table scrolls sideways */
+.md-sources-cell { max-width: 24rem; overflow-wrap: anywhere; }
+/* the message of a run: its lines as written, wrapped */
+.md-sources-message { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--mat-fs-sm); }

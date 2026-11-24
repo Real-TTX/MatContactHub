@@ -1,0 +1,13 @@
+@model SyncState
+@* The state of a sync as a pill (the list, the edit page, the runs, the run): the colour has a fixed meaning and the word says it too (COLOR-03, COLOR-04). *@
+@{
+    var tone = Model switch
+    {
+        SyncState.Succeeded => "mat-pill--ok",
+        SyncState.Failed => "mat-pill--error",
+        SyncState.Running => "mat-pill--busy",
+        SyncState.Cancelled => "mat-pill--warn",
+        _ => "mat-pill--plain",
+    };
+}
+<span class="mat-pill @tone">@L["Sources.State." + Model]</span>

@@ -185,7 +185,7 @@ public sealed class MatContactHubPlatform(InstanceService instance, MatPlatformS
         using var scope = scopes.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var runs = await db.SyncRuns.AsNoTracking().OrderByDescending(r => r.StartDate).Take(8)
-            .Select(r => new { r.DataSourceId, Source = r.DataSource!.Name, r.State, r.StartDate, r.Created, r.Updated, r.Deleted }).ToListAsync(ct);
+            .Select(r => new { r.Id, r.DataSourceId, Source = r.DataSource!.Name, r.State, r.StartDate, r.Created, r.Updated, r.Deleted }).ToListAsync(ct);
         return [.. runs.Select(r => new MatWidgetItem(r.Source)
         {
             Subtitle = r.State switch
@@ -196,7 +196,7 @@ public sealed class MatContactHubPlatform(InstanceService instance, MatPlatformS
                 _ => call.T("Fehlgeschlagen", "Failed"),
             },
             Icon = "refresh",
-            Url = $"/Sources/Edit?id={r.DataSourceId}",
+            Url = $"/Sources/Run?id={r.Id}",
             Time = new DateTimeOffset(DateTime.SpecifyKind(r.StartDate, DateTimeKind.Utc)),
             Level = r.State switch { SyncState.Succeeded => "ok", SyncState.Running => "info", SyncState.Cancelled => "warn", _ => "error" },
         })];

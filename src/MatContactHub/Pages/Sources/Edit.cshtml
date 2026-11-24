@@ -1,30 +1,402 @@
 @page "/Sources/Edit"
 @model MatContactHub.Pages.Sources.EditModel
 @{
-    ViewData["Title"] = Model.IsNew ? L["Sources.New"].Value : Model.Name;
-    ViewData["Crumbs"] = new List<(string, string?)> { (L["Admin.Title"].Value, null), (L["Sources.Title"].Value, "/Sources"), (Model.IsNew ? L["Common.New"].Value : Model.Name, null) };
-    ViewData["Width"] = "narrow";
+    var s = Model.Source;
+    var name = Model.IsNew ? L["Common.New"].Value : s?.Name ?? Model.Name;
+    ViewData["Title"] = Model.IsNew ? L["Sources.New"].Value : name;
+    ViewData["Crumbs"] = new List<(string, string?)> { (L["Admin.Title"].Value, null), (L["Sources.Title"].Value, "/Sources"), (name, null) };
+    ViewData["Width"] = Model.Tab is "general" or "connection" ? "narrow" : null;
+    var deleteConfirm = L["Sources.DeleteConfirm", name].Value;
+    var deleteHandler = Model.IsNew ? null : "Delete";
+    var syncUrl = ButtonRowTagHelper.HandlerUrl(HttpContext.Request, "Sync");
+    string SecretHint(bool stored) => stored ? L["Sources.Secret.Set"].Value : L["Sources.Secret.NotSet"].Value;
+    var methods = new List<Choice> { new("GET", "GET"), new("POST", "POST") };
+    var auths = Enum.GetValues<RestAuth>().Select(a => new Choice(a.ToString(), L["Sources.Rest.Auth." + a].Value)).ToList();
+    var paginations = Enum.GetValues<RestPagination>().Select(p => new Choice(p.ToString(), L["Sources.Rest.Pagination." + p].Value, L["Sources.Rest.Pagination." + p + ".Hint"].Value)).ToList();
+    var origins = Enum.GetValues<CsvOrigin>().Select(o => new Choice(o.ToString(), L["Sources.Csv.Origin." + o].Value)).ToList();
+    var delimiters = Enum.GetValues<CsvDelimiter>().Select(d => new Choice(d.ToString(), L["Sources.Csv.Delimiter." + d].Value)).ToList();
+    var encodings = Enum.GetValues<CsvEncoding>().Select(e => new Choice(e.ToString(), L["Sources.Csv.Encoding." + e].Value)).ToList();
+    var transforms = Enum.GetValues<FieldTransform>();
 }
 
-<form class="mat-form" method="post" novalidate>
-    <partial name="_FormSummary" model="ViewData.ModelState" />
-    <div class="mat-card">
-        <div class="mat-card__body mat-form">
-            <md-field name="Name" label="@L["Common.Name"]" required value="@Model.Name" maxlength="120" />
-            <md-field name="Kind" kind="radios" label="@L["Sources.Col.Kind"]" value="@Model.Kind" options="Model.Kinds" disabled="@(!Model.IsNew)" />
-            <md-field name="AddressBookId" kind="select" label="@L["Contacts.Col.AddressBook"]" value="@Model.AddressBookId" options="Model.AddressBooks" required />
-            <md-field name="Enabled" kind="switch" label="@L["Sources.Enabled"]" value="@Model.Enabled.ToString()" />
-            <md-field name="IntervalMinutes" kind="number" label="@L["Sources.Interval"]" value="@Model.IntervalMinutes" min="0" max="10080" inputmode="numeric" hint="@L["Sources.Interval.Hint"]" />
-            <md-field name="KeyField" label="@L["Sources.KeyField"]" value="@Model.KeyField" maxlength="255" optional mono hint="@L["Sources.KeyField.Hint"]" />
-            <md-field name="DeleteMissing" kind="switch" label="@L["Sources.DeleteMissing"]" value="@Model.DeleteMissing.ToString()" hint="@L["Sources.DeleteMissing.Hint"]" />
-        </div>
-    </div>
-    <p class="md-placeholder">@L["Common.NotYet"]</p>
-    <md-buttons save="@L["Common.Save"]" back="/Sources" delete-handler="@(Model.IsNew ? null : "Delete")" delete-confirm="@L["Sources.DeleteConfirm", Model.Name]" />
-</form>
 @if (!Model.IsNew)
 {
-    <form method="post" asp-page-handler="Sync" asp-route-id="@Model.Id" class="md-mt">
-        <button type="submit" class="mat-btn mat-btn--secondary">@Ui.Icon("refresh")<span>@L["Sources.SyncNow"]</span></button>
+    <md-tabs label="@L["Sources.Tabs"]">
+        @foreach (var tab in EditModel.Tabs)
+        {
+            <md-tab href="@EditModel.Address(Model.Id, tab)" active="@(Model.Tab == tab)">@L["Sources.Tab." + tab]</md-tab>
+        }
+    </md-tabs>
+
+    @if (Model.Running || Model.Waiting)
+    {
+        <div class="mat-alert mat-alert--info" role="status">
+            @Ui.Icon("refresh")
+            <div class="mat-alert__body">@(Model.Running ? L["Sources.Running.Text"] : L["Sources.Waiting.Text"])</div>
+            @if (Model.Running)
+            {
+                <div class="mat-alert__actions">
+                    <form method="post" asp-page-handler="Cancel" asp-route-id="@Model.Id" asp-route-tab="@Model.Tab">
+                        <button type="submit" class="mat-btn mat-btn--secondary mat-btn--sm">@Ui.Icon("stop")<span>@L["Sources.Cancel"]</span></button>
+                    </form>
+                </div>
+            }
+        </div>
+    }
+}
+
+@if (Model.Tab == "general")
+{
+    @if (s is not null)
+    {
+        <div class="mat-stats">
+            <div class="mat-stat">@Ui.Icon("users", "mat-stat__icon")<span class="mat-stat__label">@L["Contacts.Title"]</span><span class="mat-stat__value">@DataSourceService.Count(s.Contacts)</span></div>
+            <a class="mat-stat @(s.LastRunState == SyncState.Failed ? "mat-stat--danger" : s.LastRunState == SyncState.Succeeded ? "mat-stat--success" : "")" href="@EditModel.Address(s.Id, "runs")">
+                @Ui.Icon("refresh", "mat-stat__icon")<span class="mat-stat__label">@L["Sources.Col.LastRun"]</span>
+                <span class="mat-stat__value">@(s.LastRunState is { } last ? L["Sources.State." + last].Value : L["Common.Never"].Value)</span>
+                @if (s.LastRunDate is { } lastDate)
+                {
+                    <span class="mat-stat__delta">@Dates.Stamp(lastDate, Model.Zone)</span>
+                }
+            </a>
+            <div class="mat-stat">@Ui.Icon("clock", "mat-stat__icon")<span class="mat-stat__label">@L["Sources.NextRun"]</span><span class="mat-stat__value md-sources-stat-text">@(s.NextRunDate is { } next && s.Enabled ? Dates.Stamp(next, Model.Zone) : L["Sources.NextRun.Manual"].Value)</span></div>
+        </div>
+        @if (s.LastRunState == SyncState.Failed && !string.IsNullOrEmpty(s.LastError))
+        {
+            <div class="mat-alert mat-alert--danger" role="alert">
+                @Ui.Icon("alert")
+                <div class="mat-alert__body"><strong>@L["Sources.LastError"]</strong> <span class="md-path">@s.LastError</span></div>
+            </div>
+        }
+    }
+
+    <form class="mat-form" method="post" asp-page="/Sources/Edit" asp-route-id="@Model.Id" novalidate>
+        <partial name="_FormSummary" model="ViewData.ModelState" />
+        <div class="mat-card">
+            <div class="mat-card__head"><h2 class="mat-card__title">@Ui.Icon("database")@L["Sources.Tab.general"]</h2></div>
+            <div class="mat-card__body mat-form">
+                <md-field name="Name" label="@L["Common.Name"]" required value="@Model.Name" maxlength="120" autofocus="@Model.IsNew" />
+                @if (Model.IsNew)
+                {
+                    <md-field name="Kind" kind="radios" label="@L["Sources.Col.Kind"]" value="@Model.Kind" options="Model.Kinds" hint="@L["Sources.Kind.Hint"]" />
+                }
+                <md-field name="AddressBookId" kind="select" label="@L["Contacts.Col.AddressBook"]" value="@Model.AddressBookId" options="Model.AddressBooks" required hint="@L["Sources.AddressBook.Hint"]" />
+                <md-field name="Enabled" kind="switch" label="@L["Sources.Enabled"]" value="@Model.Enabled.ToString()" hint="@L["Sources.Enabled.Hint"]" />
+                <md-field name="IntervalMinutes" kind="number" label="@L["Sources.Interval"]" value="@Model.IntervalMinutes" min="0" max="10080" inputmode="numeric" hint="@L["Sources.Interval.Hint"]" />
+                <md-field name="DeleteMissing" kind="switch" label="@L["Sources.DeleteMissing"]" value="@Model.DeleteMissing.ToString()" hint="@L["Sources.DeleteMissing.Hint"]" />
+            </div>
+        </div>
+        <md-buttons save="@(Model.IsNew ? L["Sources.Create"].Value : L["Common.Save"].Value)" back="/Sources" delete-handler="@deleteHandler" delete-confirm="@deleteConfirm">
+            @if (!Model.IsNew)
+            {
+                <button type="submit" class="mat-btn mat-btn--secondary md-btn-collapse" formnovalidate formaction="@syncUrl" aria-label="@L["Sources.SyncNow"]" data-tip="@L["Sources.SyncNow"]">@Ui.Icon("refresh")<span>@L["Sources.SyncNow"]</span></button>
+            }
+        </md-buttons>
     </form>
+}
+else if (Model.Tab == "connection" && s is not null)
+{
+    <form class="mat-form" method="post" enctype="multipart/form-data" asp-page-handler="Connection" asp-route-id="@Model.Id" asp-route-tab="connection" novalidate>
+        <partial name="_FormSummary" model="ViewData.ModelState" />
+        <div class="mat-card">
+            <div class="mat-card__head"><h2 class="mat-card__title">@Ui.Icon("plug")@L["Sources.Col.Kind"]</h2></div>
+            <div class="mat-card__body mat-form">
+                <md-field name="Kind" kind="radios" label="@L["Sources.Kind.Choose"]" value="@Model.Kind" options="Model.Kinds" hint="@L["Sources.Kind.Switch"]" />
+            </div>
+        </div>
+
+        @* ---- REST API ---- *@
+        <div class="mat-card" data-show-if="Kind" data-show-value="Rest">
+            <div class="mat-card__head"><h2 class="mat-card__title">@Ui.Icon("globe")@L["Sources.Rest.Request"]</h2></div>
+            <div class="mat-card__body mat-form">
+                <md-field name="RestUrl" kind="url" label="@L["Sources.Rest.Url"]" value="@Model.RestUrl" required maxlength="2000" placeholder="https://api.example.com/contacts" mono />
+                <md-field name="RestMethod" kind="radios" label="@L["Sources.Rest.Method"]" value="@Model.RestMethod" options="methods" />
+                <md-field name="RestBody" kind="textarea" label="@L["Sources.Rest.Body"]" value="@Model.RestBody" optional mono rows="4" maxlength="10000" hint="@L["Sources.Rest.Body.Hint"]" show-if="RestMethod" show-value="POST" />
+                <md-field name="RestHeaders" kind="textarea" label="@L["Sources.Rest.Headers"]" value="@Model.RestHeaders" optional mono rows="3" maxlength="4000" placeholder="Accept-Language: de" hint="@L["Sources.Rest.Headers.Hint"]" />
+            </div>
+        </div>
+        <div class="mat-card" data-show-if="Kind" data-show-value="Rest">
+            <div class="mat-card__head"><h2 class="mat-card__title">@Ui.Icon("key")@L["Sources.Rest.SignIn"]</h2></div>
+            <div class="mat-card__body mat-form">
+                <md-field name="RestAuth" kind="radios" label="@L["Sources.Rest.Auth"]" value="@Model.RestAuth" options="auths" />
+                <md-field name="RestUser" label="@L["Sources.Rest.User"]" value="@Model.RestUser" maxlength="200" autocomplete="off" show-if="RestAuth" show-value="Basic" />
+                <md-field name="RestPassword" kind="password" label="@L["Sources.Rest.Password"]" autocomplete="new-password" maxlength="1000" hint="@SecretHint(s.Secrets.Password)" show-if="RestAuth" show-value="Basic" />
+                <md-field name="RestToken" kind="password" label="@L["Sources.Rest.Token"]" autocomplete="new-password" maxlength="4000" hint="@SecretHint(s.Secrets.Token)" show-if="RestAuth" show-value="Bearer" />
+                <md-field name="RestApiKeyHeader" label="@L["Sources.Rest.ApiKeyHeader"]" value="@Model.RestApiKeyHeader" maxlength="100" mono show-if="RestAuth" show-value="ApiKey" />
+                <md-field name="RestApiKey" kind="password" label="@L["Sources.Rest.ApiKey"]" autocomplete="new-password" maxlength="4000" hint="@SecretHint(s.Secrets.ApiKey)" show-if="RestAuth" show-value="ApiKey" />
+            </div>
+        </div>
+        <div class="mat-card" data-show-if="Kind" data-show-value="Rest">
+            <div class="mat-card__head"><h2 class="mat-card__title">@Ui.Icon("list")@L["Sources.Rest.Records"]</h2></div>
+            <div class="mat-card__body mat-form">
+                <md-field name="RestItemsPath" label="@L["Sources.Rest.ItemsPath"]" value="@Model.RestItemsPath" optional mono maxlength="200" placeholder="data.items" hint="@L["Sources.Rest.ItemsPath.Hint"]" />
+                <md-field name="RestPagination" kind="radios" label="@L["Sources.Rest.Pagination"]" value="@Model.RestPagination" options="paginations" />
+                <md-field name="RestPageParameter" label="@L["Sources.Rest.PageParameter"]" value="@Model.RestPageParameter" mono maxlength="100" show-if="RestPagination" show-value="Page" />
+                <md-field name="RestPageStart" kind="number" label="@L["Sources.Rest.PageStart"]" value="@Model.RestPageStart" min="0" inputmode="numeric" show-if="RestPagination" show-value="Page" />
+                <md-field name="RestPageSizeParameter" label="@L["Sources.Rest.PageSizeParameter"]" value="@Model.RestPageSizeParameter" optional mono maxlength="100" placeholder="size" show-if="RestPagination" show-value="Page" />
+                <md-field name="RestPageSize" kind="number" label="@L["Sources.Rest.PageSize"]" value="@Model.RestPageSize" min="1" max="10000" inputmode="numeric" show-if="RestPagination" show-value="Page" />
+                <md-field name="RestNextLinkPath" label="@L["Sources.Rest.NextLinkPath"]" value="@Model.RestNextLinkPath" optional mono maxlength="200" placeholder="links.next" hint="@L["Sources.Rest.NextLinkPath.Hint"]" show-if="RestPagination" show-value="NextLink" />
+            </div>
+        </div>
+        <div class="mat-card" data-show-if="Kind" data-show-value="Rest">
+            <div class="mat-card__head"><h2 class="mat-card__title">@Ui.Icon("shield")@L["Sources.Rest.Limits"]</h2></div>
+            <div class="mat-card__body mat-form">
+                <md-field name="RestTimeout" kind="number" label="@L["Sources.Rest.Timeout"]" value="@Model.RestTimeout" min="1" max="600" inputmode="numeric" />
+                <md-field name="RestMaxRecords" kind="number" label="@L["Sources.Rest.MaxRecords"]" value="@Model.RestMaxRecords" min="1" max="1000000" inputmode="numeric" hint="@L["Sources.Rest.MaxRecords.Hint"]" />
+                <md-field name="RestIgnoreTls" kind="switch" label="@L["Sources.Rest.IgnoreTls"]" value="@Model.RestIgnoreTls.ToString()" />
+                <div class="mat-alert mat-alert--warning" role="alert" data-show-if="RestIgnoreTls" data-show-value="true">
+                    @Ui.Icon("alert")
+                    <div class="mat-alert__body">@L["Sources.Rest.IgnoreTls.Warning"]</div>
+                </div>
+            </div>
+        </div>
+
+        @* ---- SQL Server ---- *@
+        <div class="mat-card" data-show-if="Kind" data-show-value="SqlServer">
+            <div class="mat-card__head"><h2 class="mat-card__title">@Ui.Icon("server")@L["Sources.Kind.SqlServer"]</h2></div>
+            <div class="mat-card__body mat-form">
+                <md-field name="SqlConnectionString" kind="password" label="@L["Sources.Sql.ConnectionString"]" autocomplete="off" maxlength="4000" placeholder="Server=sql.example.local;Database=crm;User Id=reader;Password=…" hint="@(SecretHint(s.Secrets.ConnectionString) + " " + L["Sources.Sql.ConnectionString.Hint"].Value)" />
+                <md-field name="SqlQuery" kind="textarea" label="@L["Sources.Sql.Query"]" value="@Model.SqlQuery" required mono rows="8" maxlength="10000" placeholder="SELECT Id, FirstName, LastName, Company, Phone FROM dbo.Contacts" hint="@L["Sources.Sql.Query.Hint"]" />
+                <md-field name="SqlTimeout" kind="number" label="@L["Sources.Sql.Timeout"]" value="@Model.SqlTimeout" min="1" max="3600" inputmode="numeric" />
+                <md-field name="SqlTrustServerCertificate" kind="switch" label="@L["Sources.Sql.TrustServerCertificate"]" value="@Model.SqlTrustServerCertificate.ToString()" hint="@L["Sources.Sql.TrustServerCertificate.Hint"]" />
+            </div>
+        </div>
+
+        @* ---- CSV ---- *@
+        <div class="mat-card" data-show-if="Kind" data-show-value="Csv">
+            <div class="mat-card__head"><h2 class="mat-card__title">@Ui.Icon("file-text")@L["Sources.Kind.Csv"]</h2></div>
+            <div class="mat-card__body mat-form">
+                <md-field name="CsvOrigin" kind="radios" label="@L["Sources.Csv.Origin"]" value="@Model.CsvOrigin" options="origins" />
+                <div class="mat-field" data-show-if="CsvOrigin" data-show-value="Upload">
+                    <label class="mat-label" for="CsvFile">@L["Sources.Csv.File"]</label>
+                    <div class="mat-upload" data-upload data-max-files="1" data-max-size="100MB">
+                        <input class="mat-upload__input" type="file" id="CsvFile" name="CsvFile" accept=".csv,.txt,.tsv,text/csv,text/plain" aria-describedby="CsvFile-hint CsvFile-error" />
+                    </div>
+                    <span class="mat-hint" id="CsvFile-hint">@(s.CsvFile is { } file ? L["Sources.Csv.File.Current", file.Name, Ui.Bytes(file.Size), Dates.Stamp(file.ModifiedUtc, Model.Zone)].Value : L["Sources.Csv.File.None"].Value)</span>
+                    <span class="mat-error" id="CsvFile-error" aria-live="polite"></span>
+                </div>
+                <md-field name="CsvUrl" kind="url" label="@L["Sources.Csv.Url"]" value="@Model.CsvUrl" maxlength="2000" mono placeholder="https://files.example.com/contacts.csv" show-if="CsvOrigin" show-value="Url" />
+                <md-field name="CsvDelimiter" kind="radios" label="@L["Sources.Csv.Delimiter"]" value="@Model.CsvDelimiter" options="delimiters" />
+                <md-field name="CsvEncoding" kind="radios" label="@L["Sources.Csv.Encoding"]" value="@Model.CsvEncoding" options="encodings" hint="@L["Sources.Csv.Encoding.Hint"]" />
+                <md-field name="CsvHasHeader" kind="switch" label="@L["Sources.Csv.HasHeader"]" value="@Model.CsvHasHeader.ToString()" hint="@L["Sources.Csv.HasHeader.Hint"]" />
+            </div>
+        </div>
+
+        <md-buttons save="@L["Common.Save"]" back="/Sources" delete-handler="@deleteHandler" delete-confirm="@deleteConfirm" />
+    </form>
+}
+else if (Model.Tab == "mapping" && s is not null)
+{
+    <datalist id="source-fields">
+        @foreach (var field in Model.Fields)
+        {
+            <option value="@field"></option>
+        }
+    </datalist>
+    <form class="mat-form" method="post" asp-page-handler="Mapping" asp-route-id="@Model.Id" asp-route-tab="mapping" novalidate>
+        <partial name="_FormSummary" model="ViewData.ModelState" />
+        @if (Model.Fields.Count == 0)
+        {
+            <div class="mat-alert mat-alert--info" role="status">
+                @Ui.Icon("info")
+                <div class="mat-alert__body">@L["Sources.Mapping.NoFields"] <a href="@EditModel.Address(Model.Id, "preview")">@L["Sources.Mapping.OpenPreview"]</a></div>
+            </div>
+        }
+        <div class="mat-card">
+            <div class="mat-card__head"><h2 class="mat-card__title">@Ui.Icon("key")@L["Sources.KeyField"]</h2></div>
+            <div class="mat-card__body mat-form">
+                <md-field name="KeyField" label="@L["Sources.KeyField"]" value="@Model.KeyField" required maxlength="255" mono list="source-fields" autocomplete="off" hint="@L["Sources.KeyField.Hint"]" />
+                <p class="mat-hint md-sources-help">@L["Sources.Mapping.Help"]</p>
+            </div>
+        </div>
+        @{ var index = 0; }
+        @foreach (var group in FieldMapper.Groups)
+        {
+            <div class="mat-card mat-card--flush">
+                <div class="mat-card__head"><h2 class="mat-card__title">@Ui.Icon(group switch { "Name" => "user", "Organisation" => "briefcase", "Communication" => "smartphone", "Address" => "home", _ => "layers" })@L["Sources.Group." + group]</h2></div>
+                <div class="mat-card__body">
+                    <md-table caption="@L["Sources.Group." + group]">
+                        <thead>
+                            <tr><th scope="col">@L["Sources.Mapping.Target"]</th><th scope="col">@L["Sources.Mapping.Source"]</th><th scope="col">@L["Sources.Mapping.Transform"]</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var target in FieldMapper.Targets.Where(t => t.Group == group))
+                            {
+                                var m = Model.MappingOf(target.Name);
+                                var label = L["Sources.Target." + target.Name].Value;
+                                <tr>
+                                    <td data-label="@L["Sources.Mapping.Target"]"><strong>@label</strong><input type="hidden" name="Mappings[@index].TargetField" value="@target.Name" /></td>
+                                    <td data-label="@L["Sources.Mapping.Source"]"><input class="mat-input mat-mono md-sources-expression" type="text" name="Mappings[@index].SourceExpression" value="@m.SourceExpression" list="source-fields" maxlength="1000" autocomplete="off" aria-label="@L["Sources.Mapping.SourceOf", label]" placeholder="@(target.Name == "DisplayName" ? "{FirstName} {LastName}" : null)" /></td>
+                                    <td data-label="@L["Sources.Mapping.Transform"]">
+                                        <select class="mat-select md-sources-transform" name="Mappings[@index].Transform" aria-label="@L["Sources.Mapping.TransformOf", label]">
+                                            @foreach (var t in transforms)
+                                            {
+                                                <option value="@t" selected="@(m.Transform == t)">@L["Sources.Transform." + t]</option>
+                                            }
+                                        </select>
+                                    </td>
+                                </tr>
+                                index++;
+                            }
+                        </tbody>
+                    </md-table>
+                </div>
+            </div>
+        }
+        <md-buttons save="@L["Common.Save"]" back="/Sources" delete-handler="@deleteHandler" delete-confirm="@deleteConfirm">
+            <button type="submit" class="mat-btn mat-btn--secondary md-btn-collapse" formnovalidate formaction="@ButtonRowTagHelper.HandlerUrl(HttpContext.Request, "AutoMap")" aria-label="@L["Sources.AutoMap"]" data-tip="@L["Sources.AutoMap.Hint"]">@Ui.Icon("sparkles")<span>@L["Sources.AutoMap"]</span></button>
+        </md-buttons>
+    </form>
+}
+else if (Model.Tab == "preview" && s is not null)
+{
+    <form class="mat-form" method="post" asp-page-handler="Preview" asp-route-id="@Model.Id" asp-route-tab="preview" novalidate>
+        @if (Model.Preview is null)
+        {
+            <div class="mat-alert mat-alert--info" role="status">
+                @Ui.Icon("eye")
+                <div class="mat-alert__body">@L["Sources.Preview.Intro", DataSourceService.PreviewRows]</div>
+            </div>
+        }
+        else
+        {
+            var p = Model.Preview;
+            @if (p.Error is not null)
+            {
+                <div class="mat-alert mat-alert--danger" role="alert">
+                    @Ui.Icon("x-circle")
+                    <div class="mat-alert__body"><strong>@L["Sources.Preview.Failed"]</strong> <span class="md-path">@p.Error</span></div>
+                </div>
+            }
+
+            @* a source that could not be read at all has no fields to show: the error says it *@
+            <div class="mat-card" hidden="@(p.Error is not null && p.Fields.Count == 0)">
+                <div class="mat-card__head"><h2 class="mat-card__title">@Ui.Icon("list-checks")@L["Sources.Preview.Fields", p.Fields.Count]</h2></div>
+                <div class="mat-card__body">
+                    @if (p.Fields.Count == 0)
+                    {
+                        <p class="md-muted">@L["Sources.Preview.NoRecords"]</p>
+                    }
+                    else
+                    {
+                        <div class="md-pills">
+                            @foreach (var field in p.Fields)
+                            {
+                                <span class="mat-tag mat-mono">@field</span>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+
+            @if (p.Rows.Count > 0)
+            {
+                <section class="md-section">
+                    <h2 class="md-section__title">@Ui.Icon("users")@L["Sources.Preview.AsContacts"]</h2>
+                    <md-table caption="@L["Sources.Preview.AsContacts"]">
+                        <thead>
+                            <tr><th scope="col">@L["Sources.Preview.Key"]</th><th scope="col">@L["Common.Name"]</th><th scope="col" class="mat-hide-sm">@L["Sources.Target.Company"]</th><th scope="col" class="mat-hide-sm">@L["Sources.Target.Email"]</th><th scope="col" class="mat-hide-sm">@L["Sources.Preview.Phone"]</th><th scope="col">@L["Sources.Preview.Problem"]</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var m in p.Mapped)
+                            {
+                                <tr>
+                                    <td data-label="@L["Sources.Preview.Key"]" class="mat-mono md-path">@m.Key</td>
+                                    <td data-label="@L["Common.Name"]">@m.DisplayName</td>
+                                    <td data-label="@L["Sources.Target.Company"]" class="mat-hide-sm">@m.Company</td>
+                                    <td data-label="@L["Sources.Target.Email"]" class="mat-hide-sm md-path">@m.Email</td>
+                                    <td data-label="@L["Sources.Preview.Phone"]" class="mat-hide-sm mat-mono">@m.Phone</td>
+                                    <td data-label="@L["Sources.Preview.Problem"]">
+                                        @if (m.Problem is null)
+                                        {
+                                            <span class="mat-pill mat-pill--ok">@L["Sources.Preview.Ok"]</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="mat-pill mat-pill--warn">@m.Problem</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </md-table>
+                </section>
+
+                <section class="md-section">
+                    <h2 class="md-section__title">@Ui.Icon("table")@L["Sources.Preview.Records", p.Rows.Count]</h2>
+                    <md-table caption="@L["Sources.Preview.Records", p.Rows.Count]" data-table-scroll>
+                        <thead>
+                            <tr>
+                                @foreach (var field in p.Fields)
+                                {
+                                    <th scope="col" class="mat-mono">@field</th>
+                                }
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var row in p.Rows)
+                            {
+                                <tr>
+                                    @foreach (var field in p.Fields)
+                                    {
+                                        <td data-label="@field" class="md-sources-cell">@(row.TryGetValue(field, out var value) ? value : null)</td>
+                                    }
+                                </tr>
+                            }
+                        </tbody>
+                    </md-table>
+                </section>
+            }
+        }
+        <md-buttons save="@L["Sources.Preview.Load"]" save-icon="eye" back="/Sources" />
+    </form>
+}
+else if (Model.Tab == "runs" && s is not null && Model.RunsToolbar is not null)
+{
+    <div class="mat-list">
+        <partial name="_Toolbar" model="Model.RunsToolbar" />
+        @if (Model.RunsToolbar.Total == 0)
+        {
+            <partial name="_Empty" model="@(new EmptyStateModel("refresh", L["Sources.Runs.Empty"].Value, L["Sources.Runs.Empty.Text"].Value, false))" />
+        }
+        else if (Model.Runs.Count == 0)
+        {
+            <partial name="_Empty" model="@(new EmptyStateModel("refresh", L["Lists.NoMatch"].Value, L["Lists.ChangeTools"].Value, false, null, null, Model.RunsToolbar.UrlReset()))" />
+        }
+        else
+        {
+            <md-table caption="@L["Sources.Tab.runs"]">
+                <thead>
+                    <tr>
+                        <th scope="col">@L["Sources.Col.Start"]</th><th scope="col">@L["Sources.Col.State"]</th><th scope="col" class="mat-hide-sm">@L["Sources.Col.Trigger"]</th>
+                        <th scope="col" class="mat-num">@L["Sources.Col.Read"]</th><th scope="col" class="mat-num">@L["Sources.Col.Created"]</th><th scope="col" class="mat-num">@L["Sources.Col.Updated"]</th>
+                        <th scope="col" class="mat-num mat-hide-sm">@L["Sources.Col.Deleted"]</th><th scope="col" class="mat-num mat-hide-sm">@L["Sources.Col.Skipped"]</th><th scope="col" class="mat-hide-sm">@L["Sources.Col.Duration"]</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var r in Model.Runs)
+                    {
+                        <tr>
+                            <td class="mat-table__primary" data-label="@L["Sources.Col.Start"]"><div class="mat-table__name"><a href="/Sources/Run?id=@r.Id">@Dates.Stamp(r.StartDate, Model.Zone)</a></div></td>
+                            <td data-label="@L["Sources.Col.State"]"><partial name="_State" model="r.State" /></td>
+                            <td data-label="@L["Sources.Col.Trigger"]" class="mat-hide-sm">@L["Sources.Trigger." + r.Trigger]</td>
+                            <td data-label="@L["Sources.Col.Read"]" class="mat-num mat-mono mat-table__keep-label">@DataSourceService.Count(r.RecordsRead)</td>
+                            <td data-label="@L["Sources.Col.Created"]" class="mat-num mat-mono mat-table__keep-label">@DataSourceService.Count(r.Created)</td>
+                            <td data-label="@L["Sources.Col.Updated"]" class="mat-num mat-mono mat-table__keep-label">@DataSourceService.Count(r.Updated)</td>
+                            <td data-label="@L["Sources.Col.Deleted"]" class="mat-num mat-mono mat-hide-sm mat-table__keep-label">@DataSourceService.Count(r.Deleted)</td>
+                            <td data-label="@L["Sources.Col.Skipped"]" class="mat-num mat-mono mat-hide-sm mat-table__keep-label">@DataSourceService.Count(r.Skipped)</td>
+                            <td data-label="@L["Sources.Col.Duration"]" class="mat-hide-sm mat-mono">@RunModel.Duration(r.StartDate, r.EndDate)</td>
+                        </tr>
+                    }
+                </tbody>
+            </md-table>
+        }
+        <partial name="_Pager" model="Model.RunsPager" />
+        <div class="mat-actions">
+            <form method="post" asp-page-handler="Sync" asp-route-id="@Model.Id" asp-route-tab="runs">
+                <button type="submit" class="mat-btn mat-btn--primary">@Ui.Icon("refresh")<span>@L["Sources.SyncNow"]</span></button>
+            </form>
+            <a class="mat-btn mat-btn--secondary" href="/Sources">@Ui.Icon("back")<span>@L["Common.Back"]</span></a>
+        </div>
+    </div>
 }

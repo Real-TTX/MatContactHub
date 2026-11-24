@@ -56,6 +56,9 @@ public sealed class FieldTagHelper : TagHelper
 
     [HtmlAttributeName("pattern")] public string? Pattern { get; set; }
 
+    /// <summary>The id of a <c>&lt;datalist&gt;</c> of suggestions for a text field (the field stays free: a suggestion is not a must).</summary>
+    [HtmlAttributeName("list")] public string? List { get; set; }
+
     [HtmlAttributeName("options")] public IEnumerable<Choice>? Options { get; set; }
 
     [HtmlAttributeName("full")] public bool Full { get; set; }
@@ -191,7 +194,7 @@ public sealed class FieldTagHelper : TagHelper
         var name = E(Name);
         string Attr(string key, string? v) => v is null ? string.Empty : $" {key}=\"{E(v)}\"";
         var limits = Attr("maxlength", MaxLength?.ToString()) + Attr("minlength", MinLength?.ToString()) + Attr("min", Min) + Attr("max", Max) + Attr("step", Step) + Attr("pattern", Pattern)
-                     + Attr("placeholder", Placeholder) + Attr("autocomplete", Autocomplete) + Attr("inputmode", InputMode);
+                     + Attr("placeholder", Placeholder) + Attr("autocomplete", Autocomplete) + Attr("inputmode", InputMode) + Attr("list", List);
 
         switch (Kind)
         {
