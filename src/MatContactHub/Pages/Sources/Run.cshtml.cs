@@ -37,7 +37,9 @@ public sealed class RunModel(AppDbContext db, SyncQueue queue) : AppPageModel
             return NotFound();
         }
 
-        Flash(run.State == SyncState.Running && queue.Cancel(run.DataSourceId) ? Text.T("Sources.CancelRequested") : Text.T("Sources.NotRunning"));
+        var cancelled = run.State == SyncState.Running
+            && (await DataSourceService.CancelSyncAsync(db, Actor.ForUser(Me), queue, run.DataSourceId, HttpContext.RequestAborted)).Value;
+        Flash(cancelled ? Text.T("Sources.CancelRequested") : Text.T("Sources.NotRunning"));
         return LocalRedirect($"/Sources/Run?id={Id}");
     }
 

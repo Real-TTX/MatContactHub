@@ -62,16 +62,30 @@ public sealed partial class SqlServerConnector(SqlServerSettings settings, Sourc
             };
             await using var reader = await command.ExecuteReaderAsync(CommandBehavior.SequentialAccess, ct);
             var names = ColumnNames(reader);
-            while (await reader.ReadAsync(ct))
+            var ended = false;
+            try
             {
-                var record = new SourceRecord();
-                for (var i = 0; i < names.Count; i++)
+                while (await reader.ReadAsync(ct))
                 {
-                    // sequential access: every column once and in order
-                    record[names[i]] = await reader.IsDBNullAsync(i, ct) ? null : ValueOf(reader.GetValue(i));
+                    var record = new SourceRecord();
+                    for (var i = 0; i < names.Count; i++)
+                    {
+                        // sequential access: every column once and in order
+                        record[names[i]] = await reader.IsDBNullAsync(i, ct) ? null : ValueOf(reader.GetValue(i));
+                    }
+
+                    yield return record;
                 }
 
-                yield return record;
+                ended = true;
+            }
+            finally
+            {
+                // the reader is left early (the preview takes the first rows, an error, a cancel): closing it would else fetch every remaining row of the server
+                if (!ended)
+                {
+                    CancelQuietly(command);
+                }
             }
         }
         finally
@@ -83,11 +97,24 @@ public sealed partial class SqlServerConnector(SqlServerSettings settings, Sourc
                 {
                     await transaction.RollbackAsync(CancellationToken.None);
                 }
-                catch (InvalidOperationException)
+                catch (Exception ex) when (ex is InvalidOperationException or SqlException)
                 {
-                    // the server ended the transaction already (an error of the query)
+                    // the server ended the transaction already (an error of the query, a cancelled query)
                 }
             }
+        }
+    }
+
+    /// <summary>Asks the server to stop the query (a failure to ask changes nothing: the reader is closed anyway).</summary>
+    private static void CancelQuietly(SqlCommand command)
+    {
+        try
+        {
+            command.Cancel();
+        }
+        catch (Exception ex) when (ex is SqlException or InvalidOperationException)
+        {
+            // the connection is gone already
         }
     }
 

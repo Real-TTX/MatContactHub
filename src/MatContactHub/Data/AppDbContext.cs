@@ -173,8 +173,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options, Current
             e.HasIndex(x => x.AddressBookId);
             e.HasOne(x => x.AddressBook).WithMany().HasForeignKey(x => x.AddressBookId).OnDelete(DeleteBehavior.Restrict);
             e.Property(x => x.Name).HasMaxLength(120);
-            e.Property(x => x.SettingsJson).HasMaxLength(20000);
-            e.Property(x => x.SecretProtected).HasMaxLength(8000);
+            e.Property(x => x.SettingsJson).HasMaxLength(DataSource.SettingsJsonMaxLength);
+            e.Property(x => x.SecretProtected).HasMaxLength(DataSource.SecretProtectedMaxLength);
             e.Property(x => x.KeyField).HasMaxLength(255);
             e.Property(x => x.LastError).HasMaxLength(2000);
             e.HasQueryFilter(x => x.UpdateState != SoftEntity.Deleted);

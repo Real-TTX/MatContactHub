@@ -49,11 +49,29 @@ public sealed class SourceSqlServerTests
         Assert.Equal(["1", "2"], records.Select(r => r["k"]));
     }
 
+    /// <summary>
+    /// The query runs in a transaction of its own (the one that is rolled back) on a connection named for the app. A rollback cannot be proven from here: the
+    /// connector lets no statement through that would change something.
+    /// </summary>
     [SqlFact]
-    public async Task The_connection_is_read_only()
+    public async Task The_query_runs_in_a_transaction_of_the_app()
     {
-        var records = await SourceTestKit.ReadAllAsync(Connector("SELECT CAST(DATABASEPROPERTYEX(DB_NAME(), 'Updateability') AS nvarchar(20)) AS U, @@TRANCOUNT AS TranCount"));
-        Assert.Equal("1", Assert.Single(records)["TranCount"]);
+        var record = Assert.Single(await SourceTestKit.ReadAllAsync(Connector("SELECT @@TRANCOUNT AS TranCount, APP_NAME() AS App")));
+        Assert.Equal(("1", "MatContactHub"), (record["TranCount"], record["App"]));
+    }
+
+    [SqlFact]
+    public async Task Leaving_a_large_result_early_does_not_read_it_to_its_end()
+    {
+        // billions of rows: read to the end, this takes far longer than the limit below
+        var connector = Connector("SELECT a.object_id AS A, b.object_id AS B FROM sys.all_objects AS a CROSS JOIN sys.all_objects AS b CROSS JOIN sys.all_objects AS c");
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        await foreach (var _ in connector.ReadAsync(CancellationToken.None))
+        {
+            break;
+        }
+
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(10), $"The early stop took {watch.Elapsed}.");
     }
 
     [SqlFact]

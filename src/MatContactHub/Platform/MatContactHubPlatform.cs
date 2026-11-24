@@ -262,7 +262,8 @@ public sealed class MatContactHubPlatform(InstanceService instance, MatPlatformS
         switch (id)
         {
             case "syncAll":
-                syncQueue.RequestAll();
+                // the platform API is the app's own caller (signed with the platform key)
+                DataSourceService.RequestSyncAll(Actor.System("platform"), syncQueue);
                 log.LogInformation("Sync of every data source requested through the platform API by {Caller}", call.Caller);
                 return new MatActionResult(true, call.T("Die Synchronisierung aller Datenquellen ist angestoßen.", "The sync of every data source has been started."));
             case "cleanUp":

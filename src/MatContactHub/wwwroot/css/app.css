@@ -110,6 +110,10 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 /* a placeholder of the foundation: what a module still builds */
 .md-placeholder { color: var(--mat-text-muted); }
 
+/* an inline md-field (a cell of a table whose column names it): its label is for the screen reader only, an empty error takes no room */
+.md-field--inline > .mat-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.md-field--inline > .mat-error:empty { min-height: 0; }
+
 /* ---- Sources (module B) ------------------------------------------------------------------------------------------- */
 /* a time stamp as the value of a key figure: smaller than a number */
 .md-sources-stat-text { font-size: var(--mat-fs-md); }

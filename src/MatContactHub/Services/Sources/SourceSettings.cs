@@ -1,3 +1,4 @@
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using MatContactHub.Data;
@@ -148,6 +149,8 @@ public sealed record SourceSettings
 
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     {
+        // stored, never written into a page: a quote or an umlaut stays one character (the column has its limit)
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         Converters = { new JsonStringEnumConverter() },
     };
@@ -197,7 +200,9 @@ public sealed record SourceSecrets
 
     public bool IsEmpty => Password is null && Token is null && ApiKey is null && ConnectionString is null;
 
-    public string ToJson() => JsonSerializer.Serialize(this);
+    private static readonly JsonSerializerOptions Json = new() { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
+
+    public string ToJson() => JsonSerializer.Serialize(this, Json);
 
     public static SourceSecrets FromJson(string? json)
     {

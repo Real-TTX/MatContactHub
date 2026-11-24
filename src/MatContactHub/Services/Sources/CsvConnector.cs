@@ -304,10 +304,12 @@ public sealed class CsvConnector(CsvSettings settings, Func<CancellationToken, T
         timeout.CancelAfter(TimeSpan.FromMinutes(5));
         try
         {
-            using var response = await http.GetAsync(address, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
+            // the file sends no secret: a redirect is followed wherever it leads
+            var (answer, answered) = await SourceHttp.SendAsync(http, address, HttpMethod.Get, (a, m) => new HttpRequestMessage(m, a), timeout.Token);
+            using var response = answer;
             if (!response.IsSuccessStatusCode)
             {
-                throw new SourceException(Text.T("Sources.Error.Http", (int)response.StatusCode, response.ReasonPhrase ?? string.Empty, address.GetLeftPart(UriPartial.Path)));
+                throw new SourceException(Text.T("Sources.Error.Http", (int)response.StatusCode, response.ReasonPhrase ?? string.Empty, answered.GetLeftPart(UriPartial.Path)));
             }
 
             await using var body = await response.Content.ReadAsStreamAsync(timeout.Token);

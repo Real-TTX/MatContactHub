@@ -64,6 +64,12 @@ public sealed class DataSource : SoftEntity
     /// <summary>Synchronise every this many minutes; 0 = only by hand.</summary>
     public int IntervalMinutes { get; set; } = 60;
 
+    /// <summary>The longest <see cref="SettingsJson"/> (the column).</summary>
+    public const int SettingsJsonMaxLength = 20000;
+
+    /// <summary>The longest <see cref="SecretProtected"/> (the column).</summary>
+    public const int SecretProtectedMaxLength = 8000;
+
     /// <summary>The settings of the kind that are no secret (JSON).</summary>
     public string SettingsJson { get; set; } = "{}";
 

@@ -12,12 +12,16 @@ namespace MatContactHub.Services.Sources;
 /// Reads a REST API that answers JSON. The records are the array at <see cref="RestSettings.ItemsPath"/> (a dot path; empty: the answer is the array); a nested
 /// object becomes fields with dots (<c>address.city</c>), an array of plain values one field joined with "; ", an array of objects fields with the index
 /// (<c>phones.0.number</c>). Pagination: none, a page number in the query until a page is empty, or the address of the next page (a field of the body or the
-/// <c>Link</c> header). Every request has its timeout; <see cref="RestSettings.MaxRecords"/> caps one read.
+/// <c>Link</c> header). Every request has its timeout; <see cref="RestSettings.MaxRecords"/> caps one read. The sign-in and the extra headers only go to the server
+/// of the configured address (<see cref="SourceHttp.IsTrusted"/>): a next page on another server is refused, a redirect to another server is followed without them.
 /// </summary>
 public sealed partial class RestConnector(RestSettings settings, SourceSecrets secrets, HttpClient http) : ISourceConnector
 {
     /// <summary>The most pages one read follows (a guard against an API that never ends).</summary>
     private const int MaxPages = 100_000;
+
+    /// <summary>The configured address: its server is the one that gets the secrets.</summary>
+    private Uri _origin = null!;
 
     public bool Truncated { get; private set; }
 
@@ -28,6 +32,7 @@ public sealed partial class RestConnector(RestSettings settings, SourceSecrets s
             throw new SourceException(Text.T("Sources.Error.Url"));
         }
 
+        _origin = url;
         var max = settings.MaxRecords > 0 ? settings.MaxRecords : int.MaxValue;
         var count = 0;
         var page = settings.PageStart;
@@ -73,11 +78,12 @@ public sealed partial class RestConnector(RestSettings settings, SourceSecrets s
         timeout.CancelAfter(TimeSpan.FromSeconds(Math.Clamp(settings.TimeoutSeconds, 1, 3600)));
         try
         {
-            using var request = BuildRequest(address);
-            using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
+            var method = string.Equals(settings.Method, "POST", StringComparison.OrdinalIgnoreCase) ? HttpMethod.Post : HttpMethod.Get;
+            var (answer, answered) = await SourceHttp.SendAsync(http, address, method, BuildRequest, timeout.Token);
+            using var response = answer;
             if (!response.IsSuccessStatusCode)
             {
-                throw new SourceException(Text.T("Sources.Error.Http", (int)response.StatusCode, response.ReasonPhrase ?? string.Empty, address.GetLeftPart(UriPartial.Path)));
+                throw new SourceException(Text.T("Sources.Error.Http", (int)response.StatusCode, response.ReasonPhrase ?? string.Empty, answered.GetLeftPart(UriPartial.Path)));
             }
 
             await using var stream = await response.Content.ReadAsStreamAsync(timeout.Token);
@@ -88,8 +94,14 @@ public sealed partial class RestConnector(RestSettings settings, SourceSecrets s
             if (settings.Pagination == RestPagination.NextLink)
             {
                 var link = string.IsNullOrWhiteSpace(settings.NextLinkPath) ? NextOfLinkHeader(response) : ValueOf(Navigate(json.RootElement, settings.NextLinkPath));
-                if (!string.IsNullOrWhiteSpace(link) && Uri.TryCreate(address, link.Trim(), out var resolved) && resolved.Scheme is "http" or "https")
+                if (!string.IsNullOrWhiteSpace(link) && Uri.TryCreate(answered, link.Trim(), out var resolved) && resolved.Scheme is "http" or "https")
                 {
+                    if (!SourceHttp.IsTrusted(_origin, resolved))
+                    {
+                        // the next page would get the sign-in of the source: only from its own server
+                        throw new SourceException(Text.T("Sources.Error.NextLinkOrigin", resolved.GetLeftPart(UriPartial.Authority), _origin.GetLeftPart(UriPartial.Authority)));
+                    }
+
                     next = resolved;
                 }
             }
@@ -110,14 +122,19 @@ public sealed partial class RestConnector(RestSettings settings, SourceSecrets s
         }
     }
 
-    private HttpRequestMessage BuildRequest(Uri address)
+    /// <summary>A request to an address (also after a redirect): the extra headers and the sign-in only when the address is on the server of the source.</summary>
+    private HttpRequestMessage BuildRequest(Uri address, HttpMethod method)
     {
-        var post = string.Equals(settings.Method, "POST", StringComparison.OrdinalIgnoreCase);
-        var request = new HttpRequestMessage(post ? HttpMethod.Post : HttpMethod.Get, address);
+        var request = new HttpRequestMessage(method, address);
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-        if (post)
+        if (method == HttpMethod.Post)
         {
             request.Content = new StringContent(string.IsNullOrWhiteSpace(settings.Body) ? "{}" : settings.Body, Encoding.UTF8, "application/json");
+        }
+
+        if (!SourceHttp.IsTrusted(_origin, address))
+        {
+            return request;
         }
 
         foreach (var (name, value) in ParseHeaders(settings.Headers))

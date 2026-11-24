@@ -16,7 +16,7 @@
     var origins = Enum.GetValues<CsvOrigin>().Select(o => new Choice(o.ToString(), L["Sources.Csv.Origin." + o].Value)).ToList();
     var delimiters = Enum.GetValues<CsvDelimiter>().Select(d => new Choice(d.ToString(), L["Sources.Csv.Delimiter." + d].Value)).ToList();
     var encodings = Enum.GetValues<CsvEncoding>().Select(e => new Choice(e.ToString(), L["Sources.Csv.Encoding." + e].Value)).ToList();
-    var transforms = Enum.GetValues<FieldTransform>();
+    var transforms = Enum.GetValues<FieldTransform>().Select(t => new Choice(t.ToString(), L["Sources.Transform." + t].Value)).ToList();
 }
 
 @if (!Model.IsNew)
@@ -167,14 +167,7 @@ else if (Model.Tab == "connection" && s is not null)
             <div class="mat-card__head"><h2 class="mat-card__title">@Ui.Icon("file-text")@L["Sources.Kind.Csv"]</h2></div>
             <div class="mat-card__body mat-form">
                 <md-field name="CsvOrigin" kind="radios" label="@L["Sources.Csv.Origin"]" value="@Model.CsvOrigin" options="origins" />
-                <div class="mat-field" data-show-if="CsvOrigin" data-show-value="Upload">
-                    <label class="mat-label" for="CsvFile">@L["Sources.Csv.File"]</label>
-                    <div class="mat-upload" data-upload data-max-files="1" data-max-size="100MB">
-                        <input class="mat-upload__input" type="file" id="CsvFile" name="CsvFile" accept=".csv,.txt,.tsv,text/csv,text/plain" aria-describedby="CsvFile-hint CsvFile-error" />
-                    </div>
-                    <span class="mat-hint" id="CsvFile-hint">@(s.CsvFile is { } file ? L["Sources.Csv.File.Current", file.Name, Ui.Bytes(file.Size), Dates.Stamp(file.ModifiedUtc, Model.Zone)].Value : L["Sources.Csv.File.None"].Value)</span>
-                    <span class="mat-error" id="CsvFile-error" aria-live="polite"></span>
-                </div>
+                <md-field name="CsvFile" kind="file" label="@L["Sources.Csv.File"]" accept=".csv,.txt,.tsv,text/csv,text/plain" max-size="100MB" hint="@(s.CsvFile is { } file ? L["Sources.Csv.File.Current", file.Name, Ui.Bytes(file.Size), Dates.Stamp(file.ModifiedUtc, Model.Zone)].Value : L["Sources.Csv.File.None"].Value)" show-if="CsvOrigin" show-value="Upload" />
                 <md-field name="CsvUrl" kind="url" label="@L["Sources.Csv.Url"]" value="@Model.CsvUrl" maxlength="2000" mono placeholder="https://files.example.com/contacts.csv" show-if="CsvOrigin" show-value="Url" />
                 <md-field name="CsvDelimiter" kind="radios" label="@L["Sources.Csv.Delimiter"]" value="@Model.CsvDelimiter" options="delimiters" />
                 <md-field name="CsvEncoding" kind="radios" label="@L["Sources.Csv.Encoding"]" value="@Model.CsvEncoding" options="encodings" hint="@L["Sources.Csv.Encoding.Hint"]" />
@@ -226,15 +219,8 @@ else if (Model.Tab == "mapping" && s is not null)
                                 var label = L["Sources.Target." + target.Name].Value;
                                 <tr>
                                     <td data-label="@L["Sources.Mapping.Target"]"><strong>@label</strong><input type="hidden" name="Mappings[@index].TargetField" value="@target.Name" /></td>
-                                    <td data-label="@L["Sources.Mapping.Source"]"><input class="mat-input mat-mono md-sources-expression" type="text" name="Mappings[@index].SourceExpression" value="@m.SourceExpression" list="source-fields" maxlength="1000" autocomplete="off" aria-label="@L["Sources.Mapping.SourceOf", label]" placeholder="@(target.Name == "DisplayName" ? "{FirstName} {LastName}" : null)" /></td>
-                                    <td data-label="@L["Sources.Mapping.Transform"]">
-                                        <select class="mat-select md-sources-transform" name="Mappings[@index].Transform" aria-label="@L["Sources.Mapping.TransformOf", label]">
-                                            @foreach (var t in transforms)
-                                            {
-                                                <option value="@t" selected="@(m.Transform == t)">@L["Sources.Transform." + t]</option>
-                                            }
-                                        </select>
-                                    </td>
+                                    <td data-label="@L["Sources.Mapping.Source"]"><md-field name="Mappings[@index].SourceExpression" id="map-@index-source" inline label="@L["Sources.Mapping.SourceOf", label]" value="@m.SourceExpression" list="source-fields" maxlength="1000" autocomplete="off" mono css="md-sources-expression" placeholder="@(target.Name == "DisplayName" ? "{FirstName} {LastName}" : null)" /></td>
+                                    <td data-label="@L["Sources.Mapping.Transform"]"><md-field name="Mappings[@index].Transform" id="map-@index-transform" kind="select" inline label="@L["Sources.Mapping.TransformOf", label]" value="@m.Transform" options="transforms" css="md-sources-transform" /></td>
                                 </tr>
                                 index++;
                             }

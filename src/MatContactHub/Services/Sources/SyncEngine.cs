@@ -13,7 +13,8 @@ namespace MatContactHub.Services.Sources;
 /// in <see cref="SyncRun.Skipped"/> with a sample of the reasons in the message), keeps the last of records with the same key (a warning), compares
 /// <see cref="Contact.SyncHash"/> (unchanged: nothing is written), upserts by (DataSourceId, ExternalKey) – a softly deleted contact comes back as the same row,
 /// with its Token –, and with <see cref="DataSource.DeleteMissing"/> deletes (softly) the contacts of this source that were not seen, but only when the read ended
-/// without an error, was not cut at a limit and read anything at all. It saves in batches of <see cref="BatchSize"/>, calls <see cref="DirectoryChanges.Bump"/>
+/// without an error, was not cut at a limit, gave usable records and skipped at most half of what it read (a key field that is gone upstream would else delete
+/// every contact); a record that was read with a key but skipped (no value, a key too long) counts as seen, its contact stays. It saves in batches of <see cref="BatchSize"/>, calls <see cref="DirectoryChanges.Bump"/>
 /// after its bulk changes, and never touches <see cref="Contact.Hidden"/> nor a manual contact. <see cref="Contact.LastSyncDate"/> is the time the sync last
 /// wrote a contact (an unchanged one is not written again, so the table does not churn).
 /// </summary>
@@ -98,6 +99,9 @@ public static class SyncEngine
         var job = new Job(source.Id, source.AddressBookId, source.KeyField, source.DeleteMissing,
             [.. source.Mappings.OrderBy(m => m.SortOrder).Select(m => new MappingRule(m.TargetField, m.SourceExpression, m.Transform))]);
         var records = new Dictionary<string, MappedRecord>(StringComparer.Ordinal);
+
+        // the keys of every record read with a key, also of those skipped: their contacts are not "missing"
+        var seen = new HashSet<string>(StringComparer.Ordinal);
         var complete = false;
 
         // 1. read and map
@@ -121,6 +125,7 @@ public static class SyncEngine
                     continue;
                 }
 
+                seen.Add(mapped.Key);
                 if (mapped.Key.Length > FieldMapper.MaxKeyLength)
                 {
                     counts.Skipped++;
@@ -173,7 +178,7 @@ public static class SyncEngine
                     }
                     else
                     {
-                        await DeleteMissingAsync(db, job, records, counts, log, ct);
+                        await DeleteMissingAsync(db, job, seen, records.Count, counts, log, ct);
                     }
                 }
             }
@@ -302,10 +307,13 @@ public static class SyncEngine
         }
     }
 
-    /// <summary>Deletes (softly) the contacts of the source whose record was not read. Nothing when nothing was read at all (an empty answer is more likely a fault).</summary>
-    private static async Task DeleteMissingAsync(AppDbContext db, Job job, Dictionary<string, MappedRecord> records, Counts counts, RunLog log, CancellationToken ct)
+    /// <summary>
+    /// Deletes (softly) the contacts of the source whose key was not read (<paramref name="seen"/>). Nothing when nothing usable was read or more than half of the
+    /// records were skipped: an empty answer or a key field that is gone is more likely a fault than the end of every contact.
+    /// </summary>
+    private static async Task DeleteMissingAsync(AppDbContext db, Job job, HashSet<string> seen, int usable, Counts counts, RunLog log, CancellationToken ct)
     {
-        var missing = job.Existing.Values.Where(e => !e.Deleted && !records.ContainsKey(e.Key)).Select(e => e.Id).ToList();
+        var missing = job.Existing.Values.Where(e => !e.Deleted && !seen.Contains(e.Key)).Select(e => e.Id).ToList();
         if (missing.Count == 0)
         {
             return;
@@ -314,6 +322,12 @@ public static class SyncEngine
         if (counts.Read == 0)
         {
             log.Note(Text.T("Sources.Run.NoDeleteEmpty", missing.Count));
+            return;
+        }
+
+        if (usable == 0 || counts.Skipped * 2 > counts.Read)
+        {
+            log.Note(Text.T("Sources.Run.NoDeleteSkipped", counts.Skipped, counts.Read, missing.Count));
             return;
         }
 

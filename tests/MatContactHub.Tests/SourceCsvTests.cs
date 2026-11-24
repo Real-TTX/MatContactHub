@@ -167,6 +167,17 @@ public sealed class SourceCsvTests
     }
 
     [Fact]
+    public async Task A_file_at_an_address_follows_a_redirect()
+    {
+        using var kit = new SourceTestKit(request => request.RequestUri!.Host == "files.example.com"
+            ? new HttpResponseMessage(System.Net.HttpStatusCode.Found) { Headers = { Location = new Uri("https://cdn.example.net/a.csv?sig=1") } }
+            : new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new ByteArrayContent(Encoding.UTF8.GetBytes("id;Firma\n7;ACME\n")) });
+        var connector = CsvConnector.For(new CsvSettings { Origin = CsvOrigin.Url, Url = "https://files.example.com/a.csv" }, Guid.NewGuid(), kit.Env);
+        Assert.Equal("ACME", Assert.Single(await SourceTestKit.ReadAllAsync(connector))["firma"]);
+        Assert.Equal(2, kit.Handler.Requests.Count);
+    }
+
+    [Fact]
     public void A_large_file_is_read_in_blocks()
     {
         var sb = new StringBuilder("id;name\n");

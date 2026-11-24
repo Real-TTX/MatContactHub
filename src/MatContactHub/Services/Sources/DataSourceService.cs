@@ -224,30 +224,41 @@ public static class DataSourceService
             return Outcome<bool>.Fail(error);
         }
 
-        if (form.Kind == DataSourceKind.Csv && settings.Csv.Origin == CsvOrigin.Upload && upload is not null)
+        var store = form.Kind == DataSourceKind.Csv && settings.Csv.Origin == CsvOrigin.Upload && upload is not null;
+        if (form.Kind == DataSourceKind.Csv)
+        {
+            // the name of a new file, else the name of the file that is there stays
+            var name = store ? Cut(Path.GetFileName(upload!.FileName), 255)
+                : settings.Csv.Origin == CsvOrigin.Upload ? SourceSettings.FromJson(source.SettingsJson).Csv.FileName
+                : null;
+            settings = settings with { Csv = settings.Csv with { FileName = name } };
+        }
+
+        // what is stored must fit its column (a JSON escape or the protection make a value longer than it was typed)
+        var json = settings.ToJson(form.Kind);
+        var protectedSecrets = env.Protect(secrets);
+        if (json.Length > DataSource.SettingsJsonMaxLength || protectedSecrets?.Length > DataSource.SecretProtectedMaxLength)
+        {
+            return Outcome<bool>.Fail(Text.T("Sources.Error.SettingsTooLarge"));
+        }
+
+        if (store)
         {
             Directory.CreateDirectory(env.SourcesDirectory);
             var path = env.CsvPath(source.Token);
             var temp = path + ".upload";
-            await using (var input = upload.Open())
+            await using (var input = upload!.Open())
             await using (var output = new FileStream(temp, FileMode.Create, FileAccess.Write, FileShare.None, 64 * 1024))
             {
                 await input.CopyToAsync(output, ct);
             }
 
             File.Move(temp, path, overwrite: true);
-            settings = settings with { Csv = settings.Csv with { FileName = Path.GetFileName(upload.FileName) } };
-        }
-        else if (form.Kind == DataSourceKind.Csv)
-        {
-            // the name of the file that is there stays
-            var before = SourceSettings.FromJson(source.SettingsJson).Csv.FileName;
-            settings = settings with { Csv = settings.Csv with { FileName = settings.Csv.Origin == CsvOrigin.Upload ? before : null } };
         }
 
         source.Kind = form.Kind;
-        source.SettingsJson = settings.ToJson(form.Kind);
-        source.SecretProtected = env.Protect(secrets);
+        source.SettingsJson = json;
+        source.SecretProtected = protectedSecrets;
         await db.SaveChangesAsync(ct);
         await ActivityLog.AddAsync(db, actor, "source", source.Name, "connection", source.Id, ct);
         return Outcome<bool>.Success(true);
@@ -271,12 +282,23 @@ public static class DataSourceService
         };
         var secrets = r.Auth switch
         {
-            RestAuth.Basic => new SourceSecrets { Password = New(change.Password) ?? stored.Password },
+            // a password is kept as typed (a space at its end is part of it); a token and a key go into a header, where a space at an end does not survive
+            RestAuth.Basic => new SourceSecrets { Password = string.IsNullOrWhiteSpace(change.Password) ? stored.Password : change.Password },
             RestAuth.Bearer => new SourceSecrets { Token = New(change.Token) ?? stored.Token },
             RestAuth.ApiKey => new SourceSecrets { ApiKey = New(change.ApiKey) ?? stored.ApiKey },
             _ => new SourceSecrets(),
         };
         var result = settings with { Rest = r };
+        var tooLong = TooLong(
+            (r.Url, 2000, "Sources.Rest.Url"), (r.Body, 10_000, "Sources.Rest.Body"), (r.Headers, 4000, "Sources.Rest.Headers"), (r.User, 200, "Sources.Rest.User"),
+            (secrets.Password, 1000, "Sources.Rest.Password"), (secrets.Token, 4000, "Sources.Rest.Token"), (r.ApiKeyHeader, 100, "Sources.Rest.ApiKeyHeader"),
+            (secrets.ApiKey, 4000, "Sources.Rest.ApiKey"), (r.ItemsPath, 200, "Sources.Rest.ItemsPath"), (r.PageParameter, 100, "Sources.Rest.PageParameter"),
+            (r.PageSizeParameter, 100, "Sources.Rest.PageSizeParameter"), (r.NextLinkPath, 200, "Sources.Rest.NextLinkPath"));
+        if (tooLong is not null)
+        {
+            return (result, secrets, tooLong);
+        }
+
         if (!Uri.TryCreate(r.Url, UriKind.Absolute, out var url) || url.Scheme is not ("http" or "https"))
         {
             return (result, secrets, Text.T("Sources.Error.Url"));
@@ -339,6 +361,11 @@ public static class DataSourceService
             return (result, Text.T("Sources.Error.ConnectionString"));
         }
 
+        if (TooLong((secrets.ConnectionString, 4000, "Sources.Sql.ConnectionString"), (s.Query, 10_000, "Sources.Sql.Query")) is { } tooLong)
+        {
+            return (result, tooLong);
+        }
+
         try
         {
             _ = new SqlConnectionStringBuilder(secrets.ConnectionString);
@@ -367,6 +394,11 @@ public static class DataSourceService
 
         if (c.Origin == CsvOrigin.Url)
         {
+            if (TooLong((c.Url, 2000, "Sources.Csv.Url")) is { } tooLong)
+            {
+                return (result, tooLong);
+            }
+
             return Uri.TryCreate(c.Url, UriKind.Absolute, out var url) && url.Scheme is "http" or "https" ? (result, null) : (result, Text.T("Sources.Error.Url"));
         }
 
@@ -385,6 +417,20 @@ public static class DataSourceService
         }
 
         return hasFile ? (result, null) : (result, Text.T("Sources.Error.NoFile"));
+    }
+
+    /// <summary>The first value that is longer than it may be (the page has the same limits, a post can pass them by), worded; null when all fit.</summary>
+    private static string? TooLong(params ReadOnlySpan<(string? Value, int Max, string Label)> values)
+    {
+        foreach (var (value, max, label) in values)
+        {
+            if (value is not null && value.Length > max)
+            {
+                return Text.T("Sources.TooLong", Text.T(label), max);
+            }
+        }
+
+        return null;
     }
 
     private static bool IsJson(string text)
@@ -512,6 +558,44 @@ public static class DataSourceService
         return new SourcePreview(fields.Names, rows, mapped, error);
     }
 
+    /// <summary>
+    /// Asks for a sync of a data source now ("Sync now"); administrators only. The run itself goes on in the background as the app (<see cref="SyncScheduler"/>):
+    /// the permission is checked here, when it is asked for.
+    /// </summary>
+    public static async Task<Outcome<bool>> RequestSyncAsync(AppDbContext db, Actor actor, SyncQueue queue, long id, CancellationToken ct = default)
+    {
+        if (!actor.IsAdmin || !await db.DataSources.AnyAsync(s => s.Id == id, ct))
+        {
+            return Outcome<bool>.Denied();
+        }
+
+        queue.Request(id);
+        return Outcome<bool>.Success(true);
+    }
+
+    /// <summary>Asks for a sync of every enabled data source ("Sync all", the platform action); administrators and the app only.</summary>
+    public static Outcome<bool> RequestSyncAll(Actor actor, SyncQueue queue)
+    {
+        if (!actor.IsAdmin)
+        {
+            return Outcome<bool>.Denied();
+        }
+
+        queue.RequestAll();
+        return Outcome<bool>.Success(true);
+    }
+
+    /// <summary>Cancels the run of a data source; administrators only. The value: whether a run went on and was asked to stop.</summary>
+    public static async Task<Outcome<bool>> CancelSyncAsync(AppDbContext db, Actor actor, SyncQueue queue, long id, CancellationToken ct = default)
+    {
+        if (!actor.IsAdmin || !await db.DataSources.AnyAsync(s => s.Id == id, ct))
+        {
+            return Outcome<bool>.Denied();
+        }
+
+        return Outcome<bool>.Success(queue.Cancel(id));
+    }
+
     /// <summary>The runs of a data source, newest first; null when the actor may not or it does not exist.</summary>
     public static async Task<(IReadOnlyList<SyncRunRow> Rows, int Total, int Matching)?> RunsAsync(AppDbContext db, Actor actor, long id, RunCriteria criteria, int page,
         int pageSize, CancellationToken ct = default)
@@ -591,6 +675,8 @@ public static class DataSourceService
     }
 
     private static bool Has(string? value) => !string.IsNullOrEmpty(value);
+
+    private static string Cut(string value, int max) => value.Length <= max ? value : value[..max];
 
     /// <summary>A count for a page (<c>1,234</c> / <c>1.234</c>).</summary>
     public static string Count(int value) => value.ToString("N0", CultureInfo.CurrentUICulture);

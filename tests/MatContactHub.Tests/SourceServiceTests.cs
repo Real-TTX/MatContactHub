@@ -35,8 +35,14 @@ public sealed class SourceServiceTests
         using var __ = kit;
         var id = (await DataSourceService.SaveAsync(t.Db, Admin, null, new DataSourceForm("CRM", DataSourceKind.Rest, book, true, 60, true))).Value;
         var user = await t.AddUserAsync("Stan");
+        var queue = new SyncQueue();
         foreach (var actor in new[] { Actor.ForPerson(user.Id, false, user.Email), Actor.ForConsumer("phone"), Actor.Anonymous })
         {
+            Assert.True((await DataSourceService.RequestSyncAsync(t.Db, actor, queue, id)).NotAllowed);
+            Assert.True(DataSourceService.RequestSyncAll(actor, queue).NotAllowed);
+            Assert.True((await DataSourceService.CancelSyncAsync(t.Db, actor, queue, id)).NotAllowed);
+            Assert.False(queue.IsWaiting(id));
+            Assert.False(queue.Reader.TryRead(out var _));
             Assert.Empty(await DataSourceService.ListAsync(t.Db, actor));
             Assert.Null(await DataSourceService.GetAsync(t.Db, actor, kit.Env, id));
             Assert.True((await DataSourceService.SaveAsync(t.Db, actor, id, new DataSourceForm("X", DataSourceKind.Rest, book, true, 60, true))).NotAllowed);
@@ -51,6 +57,30 @@ public sealed class SourceServiceTests
 
         Assert.Equal("CRM", (await DataSourceService.GetAsync(t.Db, Admin, kit.Env, id))!.Name);
         Assert.Single(await t.Db.DataSources.ToListAsync());
+    }
+
+    [DbFact]
+    public async Task An_administrator_asks_for_a_sync_and_cancels_it()
+    {
+        var (t, kit, book) = await CreateAsync();
+        await using var _ = t;
+        using var __ = kit;
+        var id = (await DataSourceService.SaveAsync(t.Db, Admin, null, new DataSourceForm("CRM", DataSourceKind.Rest, book, true, 60, true))).Value;
+        var queue = new SyncQueue();
+
+        Assert.True((await DataSourceService.RequestSyncAsync(t.Db, Admin, queue, id)).Ok);
+        Assert.True(queue.IsWaiting(id));
+        Assert.True(queue.Reader.TryRead(out var requested));
+        Assert.Equal(id, requested);
+        Assert.True((await DataSourceService.RequestSyncAsync(t.Db, Admin, queue, id + 99)).NotAllowed);
+        Assert.True(DataSourceService.RequestSyncAll(Admin, queue).Ok);
+        Assert.True(queue.Reader.TryRead(out var all));
+        Assert.Equal(SyncQueue.All, all);
+
+        Assert.False((await DataSourceService.CancelSyncAsync(t.Db, Admin, queue, id)).Value);
+        Assert.True(queue.TryStart(id, CancellationToken.None, out var run));
+        Assert.True((await DataSourceService.CancelSyncAsync(t.Db, Admin, queue, id)).Value);
+        Assert.True(run.IsCancellationRequested);
     }
 
     [DbFact]
@@ -110,6 +140,47 @@ public sealed class SourceServiceTests
         Assert.Equal(("t0k", null), (secrets.Token, secrets.Password));
         Assert.True((await DataSourceService.SaveConnectionAsync(t.Db, Admin, kit.Env, id, Rest("https://api.test/v2"), null)).Ok);
         Assert.Null((await t.Db.DataSources.AsNoTracking().SingleAsync(x => x.Id == id)).SecretProtected);
+    }
+
+    [DbFact]
+    public async Task A_password_is_stored_as_typed()
+    {
+        var (t, kit, book) = await CreateAsync();
+        await using var _ = t;
+        using var __ = kit;
+        var id = (await DataSourceService.SaveAsync(t.Db, Admin, null, new DataSourceForm("API", DataSourceKind.Rest, book, true, 60, true))).Value;
+        Assert.True((await DataSourceService.SaveConnectionAsync(t.Db, Admin, kit.Env, id, Rest("https://api.test/c", RestAuth.Basic, new SecretChange(Password: " pa55 word ")), null)).Ok);
+        var row = await t.Db.DataSources.AsNoTracking().SingleAsync(x => x.Id == id);
+        Assert.Equal(" pa55 word ", kit.Env.Unprotect(row.SecretProtected).Password);
+    }
+
+    [DbFact]
+    public async Task Values_too_long_for_the_database_are_worded_errors()
+    {
+        var (t, kit, book) = await CreateAsync();
+        await using var _ = t;
+        using var __ = kit;
+        var id = (await DataSourceService.SaveAsync(t.Db, Admin, null, new DataSourceForm("API", DataSourceKind.Rest, book, true, 60, true))).Value;
+        ConnectionForm Post(string body, SecretChange? secrets = null) => new(DataSourceKind.Rest,
+            new SourceSettings { Rest = new RestSettings { Url = "https://api.test/c", Method = "POST", Body = body, Auth = RestAuth.Bearer } }, secrets ?? new SecretChange(Token: "t"));
+
+        // past the limit of the page
+        var url = await DataSourceService.SaveConnectionAsync(t.Db, Admin, kit.Env, id, Rest("https://api.test/" + new string('a', 2000)), null);
+        Assert.Equal(Text.T("Sources.TooLong", Text.T("Sources.Rest.Url"), 2000), url.Error);
+        var token = await DataSourceService.SaveConnectionAsync(t.Db, Admin, kit.Env, id, Post("{}", new SecretChange(Token: new string('t', 4001))), null);
+        Assert.Equal(Text.T("Sources.TooLong", Text.T("Sources.Rest.Token"), 4000), token.Error);
+
+        // within the limits, but JSON escapes make the stored settings longer than their column
+        var body = "[\"" + string.Concat(Enumerable.Repeat("\\\"", 4995)) + "\"]";
+        Assert.InRange(body.Length, 9000, 10_000);
+        var escaped = await DataSourceService.SaveConnectionAsync(t.Db, Admin, kit.Env, id, Post(body), null);
+        Assert.Equal(Text.T("Sources.Error.SettingsTooLarge"), escaped.Error);
+
+        // a long body with umlauts and quotes in strings stays within the column (no \u escapes)
+        var german = "{\"q\":\"" + new string('ä', 9000) + "'<>+\"}";
+        var saved = await DataSourceService.SaveConnectionAsync(t.Db, Admin, kit.Env, id, Post(german), null);
+        Assert.True(saved.Ok, saved.Error);
+        Assert.Equal(german, SourceSettings.FromJson((await t.Db.DataSources.AsNoTracking().SingleAsync(x => x.Id == id)).SettingsJson).Rest.Body);
     }
 
     [DbFact]

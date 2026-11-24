@@ -6,9 +6,10 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace MatContactHub.Pages.Sources;
 
+/// <summary>
 /// The data sources (administrators; module B): a list with search, the filters kind and state, sort, pager, the state of every source (running, waiting, the
-/// last run), "Sync now" per line and "Sync all". The data sources are few, so the page filters the list of <see cref="DataSourceService.ListAsync"/> in memory.
-/// detail follows). The data sources are few, so the page filters the list of <see cref="DataSourceService.ListAsync"/> in memory.
+/// last run), "Sync now" per line and "Sync all" (both checked in <see cref="DataSourceService"/>). The data sources are few, so the page filters the list of
+/// <see cref="DataSourceService.ListAsync"/> in memory.
 /// </summary>
 public sealed class IndexModel(AppDbContext db, SyncQueue queue) : AppPageModel
 {
@@ -94,20 +95,24 @@ public sealed class IndexModel(AppDbContext db, SyncQueue queue) : AppPageModel
 
     public bool IsWaiting(long id) => queue.IsWaiting(id);
 
-    public IActionResult OnPostSync(long id)
+    public async Task<IActionResult> OnPostSyncAsync(long id)
     {
-        if (Me.IsAdmin && id > 0)
+        if (!(await DataSourceService.RequestSyncAsync(db, Actor.ForUser(Me), queue, id, HttpContext.RequestAborted)).Ok)
         {
-            queue.Request(id);
-            Flash(Text.T("Sources.SyncRequested"));
+            return NotFound();
         }
 
+        Flash(Text.T("Sources.SyncRequested"));
         return LocalRedirect("/Sources");
     }
 
     public IActionResult OnPostSyncAll()
     {
-        queue.RequestAll();
+        if (!DataSourceService.RequestSyncAll(Actor.ForUser(Me), queue).Ok)
+        {
+            return NotFound();
+        }
+
         Flash(Text.T("Sources.SyncRequested"));
         return LocalRedirect("/Sources");
     }

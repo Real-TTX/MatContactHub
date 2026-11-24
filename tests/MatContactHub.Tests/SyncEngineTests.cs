@@ -262,6 +262,49 @@ public sealed class SyncEngineTests
     }
 
     [DbFact]
+    public async Task An_answer_whose_records_are_all_skipped_deletes_nothing()
+    {
+        await using var w = await CreateAsync();
+        w.Records = [Person("1", "Ada", "Lovelace"), Person("2", "Grace", "Hopper")];
+        await w.SyncAsync();
+
+        // upstream renamed the key field: every record is read, none has a key
+        w.Records = [new() { ["contactId"] = "1", ["first"] = "Ada" }, new() { ["contactId"] = "2", ["first"] = "Grace" }];
+        var run = await w.SyncAsync();
+        Assert.Equal(SyncState.Succeeded, run.State);
+        Assert.Equal((2, 2, 0), (run.RecordsRead, run.Skipped, run.Deleted));
+        Assert.Contains(Text.T("Sources.Run.NoDeleteSkipped", 2, 2, 2), run.Message, StringComparison.Ordinal);
+        Assert.Equal(2, (await w.SyncedAsync()).Count);
+    }
+
+    [DbFact]
+    public async Task When_most_records_are_skipped_nothing_is_deleted()
+    {
+        await using var w = await CreateAsync();
+        w.Records = [Person("1", "Ada", "Lovelace"), Person("2", "Grace", "Hopper"), Person("3", "Alan", "Turing")];
+        await w.SyncAsync();
+        w.Records = [Person("1", "Ada", "Lovelace"), new() { ["first"] = "No" }, new() { ["first"] = "Key" }];
+        var run = await w.SyncAsync();
+        Assert.Equal((3, 2, 0), (run.RecordsRead, run.Skipped, run.Deleted));
+        Assert.Contains(Text.T("Sources.Run.NoDeleteSkipped", 2, 3, 2), run.Message, StringComparison.Ordinal);
+        Assert.Equal(3, (await w.SyncedAsync()).Count);
+    }
+
+    [DbFact]
+    public async Task A_record_read_with_its_key_but_without_values_keeps_its_contact()
+    {
+        await using var w = await CreateAsync();
+        w.Records = [Person("1", "Ada", "Lovelace"), Person("2", "Grace", "Hopper"), Person("3", "Alan", "Turing")];
+        await w.SyncAsync();
+
+        // 2 comes back empty (skipped, but seen), 3 is gone
+        w.Records = [Person("1", "Ada", "Lovelace"), new() { ["id"] = "2" }];
+        var run = await w.SyncAsync();
+        Assert.Equal((2, 1, 1), (run.RecordsRead, run.Skipped, run.Deleted));
+        Assert.Equal(["1", "2"], (await w.SyncedAsync()).Select(c => c.ExternalKey));
+    }
+
+    [DbFact]
     public async Task Without_delete_missing_nothing_is_deleted()
     {
         await using var w = await CreateAsync(deleteMissing: false);

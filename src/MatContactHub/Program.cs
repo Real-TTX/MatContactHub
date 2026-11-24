@@ -66,10 +66,16 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<MailService>());
 
 // The data sources (module B): the queue of "Sync now" and the scheduler that runs the syncs in the background. The connectors read REST APIs and CSV addresses
 // through two HTTP clients: one that checks the TLS certificate and one that does not (only for a source whose page says so, with a warning); the timeouts are
-// those of each source. SourceEnvironment hands them, the protector of the secrets and the data folder to the business layer.
-builder.Services.AddHttpClient(SourceEnvironment.HttpClientName, c => c.Timeout = Timeout.InfiniteTimeSpan);
+// those of each source. Neither follows a redirect itself (it would keep a header such as an API key on the way to another server): the connectors do
+// (SourceHttp). SourceEnvironment hands them, the protector of the secrets and the data folder to the business layer.
+builder.Services.AddHttpClient(SourceEnvironment.HttpClientName, c => c.Timeout = Timeout.InfiniteTimeSpan)
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
 builder.Services.AddHttpClient(SourceEnvironment.InsecureHttpClientName, c => c.Timeout = Timeout.InfiniteTimeSpan)
-    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator });
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+    {
+        AllowAutoRedirect = false,
+        ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator,
+    });
 builder.Services.AddSingleton(SourceEnvironment.From);
 builder.Services.AddSingleton<SyncQueue>();
 builder.Services.AddHostedService<SyncScheduler>();

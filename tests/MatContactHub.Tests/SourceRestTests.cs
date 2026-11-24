@@ -187,6 +187,76 @@ public sealed class SourceRestTests
         Assert.Equal(["1", "2"], records.Select(r => r["id"]));
     }
 
+    [Theory]
+    [InlineData("https://evil.example.net/c?page=2")]
+    [InlineData("http://api.example.com/c?page=2")]
+    [InlineData("https://api.example.com:8443/c?page=2")]
+    public async Task A_next_link_to_another_server_is_refused_and_gets_no_secret(string link)
+    {
+        using var kit = new SourceTestKit(_ => FakeHandler.Json($$"""{"items":[{"id":1}],"next":"{{link}}"}"""));
+        var connector = Connector(kit, new RestSettings
+        {
+            Url = "https://api.example.com/c", ItemsPath = "items", Pagination = RestPagination.NextLink, NextLinkPath = "next", Auth = RestAuth.Bearer,
+        }, new SourceSecrets { Token = "tok-123" });
+        var error = await Assert.ThrowsAsync<SourceException>(() => SourceTestKit.ReadAllAsync(connector));
+        Assert.Contains(new Uri(link).GetLeftPart(UriPartial.Authority), error.Message, StringComparison.Ordinal);
+        Assert.Equal("api.example.com", kit.Handler.Requests.Single().Request.RequestUri!.Host);
+    }
+
+    [Fact]
+    public async Task A_redirect_on_the_same_server_keeps_the_sign_in()
+    {
+        using var kit = new SourceTestKit(request => request.RequestUri!.AbsolutePath == "/old"
+            ? new HttpResponseMessage(HttpStatusCode.MovedPermanently) { Headers = { Location = new Uri("/new", UriKind.Relative) } }
+            : FakeHandler.Json("""[{"id":1}]"""));
+        var records = await SourceTestKit.ReadAllAsync(Connector(kit, new RestSettings { Url = "http://api.example.com/old", Auth = RestAuth.ApiKey, Headers = "X-Tenant: 42" },
+            new SourceSecrets { ApiKey = "key-9" }));
+        Assert.Single(records);
+        Assert.Equal(2, kit.Handler.Requests.Count);
+        var second = kit.Handler.Requests[1].Request;
+        Assert.Equal("http://api.example.com/new", second.RequestUri!.AbsoluteUri);
+        Assert.Equal("key-9", second.Headers.GetValues("X-API-Key").Single());
+        Assert.Equal("42", second.Headers.GetValues("X-Tenant").Single());
+    }
+
+    [Fact]
+    public async Task A_redirect_to_another_server_is_followed_without_the_secrets()
+    {
+        using var kit = new SourceTestKit(request => request.RequestUri!.Host == "api.example.com"
+            ? new HttpResponseMessage(HttpStatusCode.Found) { Headers = { Location = new Uri("https://files.example.net/export.json") } }
+            : FakeHandler.Json("""[{"id":1}]"""));
+        var records = await SourceTestKit.ReadAllAsync(Connector(kit, new RestSettings
+        {
+            Url = "https://api.example.com/c", Auth = RestAuth.ApiKey, ApiKeyHeader = "X-Api-Token", Headers = "X-Tenant: 42",
+        }, new SourceSecrets { ApiKey = "key-9" }));
+        Assert.Single(records);
+        Assert.Equal("key-9", kit.Handler.Requests[0].Request.Headers.GetValues("X-Api-Token").Single());
+        var second = kit.Handler.Requests[1].Request;
+        Assert.Equal("files.example.net", second.RequestUri!.Host);
+        Assert.False(second.Headers.Contains("X-Api-Token"));
+        Assert.False(second.Headers.Contains("X-Tenant"));
+        Assert.Null(second.Headers.Authorization);
+    }
+
+    [Fact]
+    public async Task A_redirect_that_never_ends_is_a_worded_error()
+    {
+        using var kit = new SourceTestKit(request => new HttpResponseMessage(HttpStatusCode.TemporaryRedirect) { Headers = { Location = request.RequestUri } });
+        await Assert.ThrowsAsync<SourceException>(() => SourceTestKit.ReadAllAsync(Connector(kit, new RestSettings { Url = "https://api.example.com/c" })));
+        Assert.Equal(SourceHttp.MaxRedirects + 1, kit.Handler.Requests.Count);
+    }
+
+    [Theory]
+    [InlineData("https://api.example.com/a", "https://api.example.com/b?x=1", true)]
+    [InlineData("https://api.example.com/a", "https://API.example.com/b", true)]
+    [InlineData("http://api.example.com/a", "https://api.example.com/b", true)]
+    [InlineData("https://api.example.com/a", "http://api.example.com/b", false)]
+    [InlineData("https://api.example.com/a", "https://api.example.com:8443/b", false)]
+    [InlineData("https://api.example.com/a", "https://other.example.com/b", false)]
+    [InlineData("https://api.example.com/a", "https://api.example.com.evil.net/b", false)]
+    public void Secrets_only_go_to_the_server_of_the_source(string origin, string address, bool trusted)
+        => Assert.Equal(trusted, SourceHttp.IsTrusted(new Uri(origin), new Uri(address)));
+
     [Fact]
     public async Task A_next_link_that_points_back_does_not_loop()
     {

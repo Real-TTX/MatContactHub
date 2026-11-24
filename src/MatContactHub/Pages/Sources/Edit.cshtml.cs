@@ -303,33 +303,33 @@ public sealed class EditModel(AppDbContext db, SyncQueue queue, SourceEnvironmen
         return Page();
     }
 
-    public IActionResult OnPostSync()
+    public async Task<IActionResult> OnPostSyncAsync()
     {
-        if (Id is { } id && Me.IsAdmin)
+        if (!(await DataSourceService.RequestSyncAsync(db, Actor.ForUser(Me), queue, Id ?? 0, HttpContext.RequestAborted)).Ok)
         {
-            queue.Request(id);
-            Flash(Text.T("Sources.SyncRequested"));
+            return NotFound();
         }
 
+        Flash(Text.T("Sources.SyncRequested"));
         return LocalRedirect(Address(Id, Tabs.Contains(Tab) ? Tab : "general"));
     }
 
-    public IActionResult OnPostCancel()
+    public async Task<IActionResult> OnPostCancelAsync()
     {
-        if (Id is { } id && Me.IsAdmin)
+        var cancelled = await DataSourceService.CancelSyncAsync(db, Actor.ForUser(Me), queue, Id ?? 0, HttpContext.RequestAborted);
+        if (!cancelled.Ok)
         {
-            Flash(queue.Cancel(id) ? Text.T("Sources.CancelRequested") : Text.T("Sources.NotRunning"));
+            return NotFound();
         }
 
+        Flash(cancelled.Value ? Text.T("Sources.CancelRequested") : Text.T("Sources.NotRunning"));
         return LocalRedirect(Address(Id, Tabs.Contains(Tab) ? Tab : "general"));
     }
 
     public async Task<IActionResult> OnPostDeleteAsync()
     {
-        if (Id is { } id && queue.IsRunning(id))
-        {
-            queue.Cancel(id);
-        }
+        // a run that goes on stops first (nothing happens for somebody who may not delete)
+        await DataSourceService.CancelSyncAsync(db, Actor.ForUser(Me), queue, Id ?? 0, HttpContext.RequestAborted);
 
         var deleted = await DataSourceService.DeleteAsync(db, Actor.ForUser(Me), env, Id ?? 0, HttpContext.RequestAborted);
         if (!deleted.Ok)
