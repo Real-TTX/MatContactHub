@@ -10,8 +10,8 @@ public static partial class Ui
     public const string AppId = "matcontacthub";
     public const string AppName = "MatContactHub";
 
-    /// <summary>The accent of MatContactHub: PROVISIONAL teal (white text on it 5.5:1); the logo module fixes it (with wwwroot/css/app.css and the manifest).</summary>
-    public const string Accent = "#0f766e";
+    /// <summary>The accent of MatContactHub: a fuchsia (white text on it 5.7:1); equal to wwwroot/css/app.css and scripts/logo.js.</summary>
+    public const string Accent = "#b81d97";
 
     [GeneratedRegex("^[a-z0-9-]+$")]
     private static partial Regex NameRegex();

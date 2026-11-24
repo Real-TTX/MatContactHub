@@ -22,7 +22,7 @@ public sealed class MatContactHubPlatform(InstanceService instance, MatPlatformS
     /// <summary>The id of MatContactHub in the platform (and the default client id at MatIdentity).</summary>
     public const string AppId = "matcontacthub";
 
-    /// <summary>The accent of MatContactHub (provisional teal; see <c>wwwroot/css/app.css</c>).</summary>
+    /// <summary>The accent of MatContactHub (a fuchsia; see <c>wwwroot/css/app.css</c>).</summary>
     public const string Accent = Ui.Accent;
 
     /// <summary>The MatApiDefinition of MatContactHub (<c>GET /api</c>) without <c>MAT_PUBLIC_URL</c>.</summary>

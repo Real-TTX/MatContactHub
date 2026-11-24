@@ -3,10 +3,11 @@
    Everything else is the toolkit (matui.css). The only literal colours here are the accent's.
    ========================================================================== */
 
-/* The accent: PROVISIONAL teal (white text 5.5:1; the logo module fixes it). Links use it too; on dark surfaces a light teal. */
-[data-app="matcontacthub"] { --mat-app-accent: #0f766e; --mat-app-accent-text: #0f766e; }
-:root[data-theme="dark"][data-app="matcontacthub"] { --mat-app-accent-text: #5eead4; }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]):not([data-theme="dark"])[data-app="matcontacthub"] { --mat-app-accent-text: #5eead4; } }
+/* The accent: a fuchsia (white text 5.7:1; IDENT-04: 0.93 from MatDrive, the nearest app). Links use it too (5.2:1 on the page, 5.7:1 on white);
+   on dark surfaces a light fuchsia (7.2:1 on a card). Keep it equal to Ui.Accent and scripts/logo.js. */
+[data-app="matcontacthub"] { --mat-app-accent: #b81d97; --mat-app-accent-text: #b81d97; }
+:root[data-theme="dark"][data-app="matcontacthub"] { --mat-app-accent-text: #e98bcb; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]):not([data-theme="dark"])[data-app="matcontacthub"] { --mat-app-accent-text: #e98bcb; } }
 
 .md-muted { color: var(--mat-text-muted); }
 .md-danger { color: var(--mat-danger-text); }

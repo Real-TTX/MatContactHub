@@ -24,7 +24,8 @@ copy of MatPlatform is never edited here, so MatContactHub keeps `MAT_CONTACTS_D
 Stack: ASP.NET Core on **.NET 10**, C#, **Razor Pages**, EF Core + **PostgreSQL**, the **MatUi** toolkit of MatDesign (`wwwroot/matui`, release **0.12.0**, bundled
 from `origin/main`: never edit by hand), plain JavaScript without a build step, `libphonenumber-csharp` for telephone numbers. Docker-first. Ports: web **7087**,
 pgAdmin 7088, local Postgres 7089; LDAP **10389** (plain + StartTLS) and **10636** (LDAPS) inside the container, mapped to 389/636 (release) or 7389/7636 (dev,
-local). UI languages: English and German (catalog in `Resources/Texts/*.json`, German with "du"). Accent: **provisional** teal `#0f766e` (the logo module fixes it).
+local). UI languages: English and German (catalog in `Resources/Texts/*.json`, German with "du"). Accent: fuchsia `#b81d97` (white text 5.7:1; on dark surfaces the links are `#e98bcb`;
+IDENT-04 distance 0.93 to MatDrive, the nearest app). Not in MatDesign's `AppRegistry.cs`/`matui.apps.css` yet: add it with the next change of MatDesign.
 
 ## Build / run / test
 
@@ -43,7 +44,8 @@ local). UI languages: English and German (catalog in `Resources/Texts/*.json`, G
   `matui.js`, `matui.boot.js`, `matui-icons.svg` as they are. **MatPlatform:** `node tools/matplatform-copy.js ../MatContactHub/src/MatContactHub` in MatDesign –
   the tool reads MatDesign's working tree, so only run it while MatDesign is on `main` (else copy `git show origin/main:src/MatPlatform/<file>`).
 - **Logo:** `node scripts/logo.js` writes the SVGs (mark, favicon, maskable, mono, logo, logo-dark), `scripts/icons.ps1` the PNGs with Edge headless. The glyph of
-  the menu is `mat-i-matcontacthub` in `wwwroot/img/app-icons.svg`. The foundation's mark is a neutral "CH" placeholder.
+  the menu is `mat-i-matcontacthub` in `wwwroot/img/app-icons.svg`. The mark is an address card with a person and a directory tree to three nodes;
+  the favicon is drawn on the 16 px grid (three links instead of the tree). `docs/logo/preview.png` shows every variant.
 - Write files with the editor tools, not with shell heredocs that contain apostrophes or backslashes (Git Bash also rewrites arguments that start with `/`).
 
 ## Map
