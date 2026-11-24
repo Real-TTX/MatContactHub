@@ -5,6 +5,10 @@
 A **contact directory of your own** with a web interface – the idea of estos MetaDirectory for the Mat family. MatContactHub collects contacts from your
 systems, keeps them in sync and serves them to telephone systems, IP phones, mail clients and other apps.
 
+Part of the Mat family: the look is [MatDesign](https://github.com/Real-TTX/MatDesign)'s MatUi, the platform contract is MatPlatform 2.4.
+
+<p align="center"><img src="docs/images/contacts.png" alt="The contacts: synced ones with the data source they come from, manual ones, numbers in any notation, the address book of each" width="900"></p>
+
 ## Features
 
 - **Data sources**: contacts from **REST APIs** (Basic, Bearer or API-key header, pagination by page or next link, nested JSON), **Microsoft SQL Server**
@@ -23,6 +27,23 @@ systems, keeps them in sync and serves them to telephone systems, IP phones, mai
   LDAP accounts with access to chosen address books; a log of the last 500 queries; a Help tab with the values for STARFACE and Yealink.
 - A **directory API** for other apps (capability `contacts.directory`): caller-ID lookup and search with a key per app.
 - English and German, light and dark, a PWA (installable; the contacts seen last stay readable offline).
+
+## Screenshots
+
+| | |
+|---|---|
+| ![Landing page](docs/images/landing.png) The start page before signing in | ![Sign-in](docs/images/signin.png) Sign in with a local account (a button for MatIdentity when it is set up) |
+| ![A contact](docs/images/contact.png) A synced contact: read-only, only *Hidden* can be set | ![Duplicates](docs/images/duplicates.png) Duplicates by number, e-mail address or name and company, with *Merge* |
+| ![An address book](docs/images/addressbook-ldap.png) An address book on the tab *LDAP & apps*: its DN for phones and STARFACE | ![Data sources](docs/images/sources.png) The data sources with the state of the last sync |
+| ![Mapping](docs/images/source-mapping.png) The field mapping of a CSV source (after *Auto-map*) | ![A sync run](docs/images/sync-run.png) A sync run: read, new, changed, unchanged, deleted, skipped |
+| ![LDAP](docs/images/ldap.png) The built-in LDAP server: StartTLS, LDAPS, base DN, number format | ![LDAP help](docs/images/ldap-help.png) The tab *Help* with the values for STARFACE and Yealink |
+| ![LDAP log](docs/images/ldap-log.png) The query log: binds and searches of STARFACE and the phones | ![Dark mode](docs/images/contacts-dark.png) Dark mode |
+
+<p align="center">
+  <img src="docs/images/phone-contacts.png" alt="The contacts on a phone" width="240">
+  <img src="docs/images/phone-contact.png" alt="A contact on a phone" width="240">
+  <img src="docs/images/phone-menu.png" alt="The menu on a phone" width="240">
+</p>
 
 ## Quick start
 
@@ -103,10 +124,29 @@ sources = degraded) to the Mattiverse.
   `MATCONTACTHUB_TEST_MSSQL` (see CLAUDE.md).
 - Compose files: `docker-compose.yml` (release, `:latest`, 389/636), `docker-compose.dev.yml` (nightly, with pgAdmin, 7389/7636), `docker-compose.local.yml`
   (built here, with pgAdmin, 7389/7636).
-- Versions: release `<major>.<minor>.<build>-<date>` (branch `main`), nightly `nightly-<build>-<date>` (branch `dev`), local `local-<date>`; the GitHub action builds,
-  tests and pushes `ghcr.io/real-ttx/matcontacthub` for both branches (amd64 and arm64).
-- The logo in its levels of detail: `node scripts/logo.js` (SVGs), `./scripts/icons.ps1` (PNGs with Edge).
 - Stack: ASP.NET Core (.NET 10, Razor Pages), EF Core + PostgreSQL, MatUi of [MatDesign](https://github.com/Real-TTX/MatDesign), MatPlatform 2.4,
   libphonenumber-csharp; the LDAP server is its own (System.Formats.Asn1). More in [CLAUDE.md](CLAUDE.md).
+
+### Versions and branches
+
+| Branch | Channel | Version | Image tags |
+|---|---|---|---|
+| `main` | release | `<major>.<minor>.<build>-<date>`, e.g. `0.1.42-20261124` | `<version>`, `latest`, `release` |
+| `dev` | nightly | `nightly-<build>-<date>` | `<version>`, `nightly` |
+| anything else, the local stack | local | `local-<date>` | – (built here) |
+
+Major and minor are set once in `Directory.Build.props`; the build number is the run of the GitHub action and the date is the day of the build (UTC). The
+action (`.github/workflows/build.yml`) builds and tests every push and pull request to `main` and `dev` and pushes `ghcr.io/real-ttx/matcontacthub` for
+`linux/amd64` and `linux/arm64`; pull requests are only built. The version is shown at the bottom of the menu and on the About page. `main` is the
+release branch, `dev` the development branch.
+
+### Logo
+
+The logo lives in [`docs/logo`](docs/logo) in its levels of detail: `matcontacthub-logo.svg` and `matcontacthub-logo-dark.svg` (the word mark for light and
+dark surfaces), `matcontacthub-mark.svg` (the square mark) and `matcontacthub-mark-512.png`, `matcontacthub-maskable.svg` (Android adaptive icons),
+`matcontacthub-mono.svg` (one colour, `currentColor`), `matcontacthub-favicon.svg`, and `preview.html` / `preview.png`, a sheet of all of them. `node scripts/logo.js`
+writes the SVGs (also into `src/MatContactHub/wwwroot/img/logo`), `./scripts/icons.ps1` draws the PNGs with Edge (PWA icons, apple-touch-icon, favicons, the sheet).
+
+The screenshots in [`docs/images`](docs/images) are taken from the running app with Playwright and Edge (1360 × 900 and 390 × 844 at 2×), with demo data only.
 
 Made by Matthias Schmoldt.
