@@ -68,8 +68,11 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<MailService>());
 builder.Services.AddSingleton<SyncQueue>();
 builder.Services.AddHostedService<SyncScheduler>();
 
-// The LDAP server (module A): listens on 10389 (LDAP, StartTLS) and 10636 (LDAPS) inside the container.
-builder.Services.AddHostedService<LdapServerHost>();
+// The LDAP server (module A): listens on 10389 (LDAP, StartTLS) and 10636 (LDAPS) inside the container (Ldap__Port / Ldap__SecurePort move them outside of it),
+// with its own sockets next to Kestrel. One instance: the hosted service and what the LDAP page reads (state, query log).
+builder.Services.AddSingleton<LdapQueryLog>();
+builder.Services.AddSingleton<LdapServerHost>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<LdapServerHost>());
 
 // The Mat platform contract (MatDesign docs/PLATFORM.md, contract 2): /api, /api/health, /api/state, /api/configure, /api/actions with MAT_API_KEY or a token of
 // MatIdentity, what MatContactHub provides (contacts.directory: a key per app that reads the shared address books) and consumes (identity.oidc, mail.smtp; shown in Administration → Connections)
