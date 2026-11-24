@@ -37,14 +37,13 @@
                     </div>
                 </div>
             }
-            <md-buttons save="@L["Common.Save"]" back="/Contacts" />
+            <md-buttons save="@L["Common.Save"]" back="/Contacts">
+                @if (Model.Tab == "general")
+                {
+                    <button type="submit" class="mat-btn mat-btn--secondary md-btn-collapse" formnovalidate formaction="@ButtonRowTagHelper.HandlerUrl(HttpContext.Request, "CleanUp")" aria-label="@L["System.CleanUp"]" data-tip="@L["System.CleanUp"]" data-confirm="@L["System.CleanUp.Confirm"]" data-confirm-ok="@L["System.CleanUp"]">@Ui.Icon("broom")<span>@L["System.CleanUp"]</span></button>
+                }
+            </md-buttons>
         </form>
-        @if (Model.Tab == "general")
-        {
-            <form method="post" asp-page-handler="CleanUp" class="md-mt">
-                <button type="submit" class="mat-btn mat-btn--secondary" data-confirm="@L["System.CleanUp.Confirm"]" data-confirm-ok="@L["System.CleanUp"]">@Ui.Icon("broom")<span>@L["System.CleanUp"]</span></button>
-            </form>
-        }
     </div>
     <div class="mat-col-12 mat-col-lg-5">
         <div class="mat-card">
