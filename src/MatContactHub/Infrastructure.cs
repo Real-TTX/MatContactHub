@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using MatContactHub.Data;
 using MatContactHub.Services;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 
 namespace MatContactHub;
@@ -54,6 +55,57 @@ public static class Database
                 app.Logger.LogWarning("The database is not ready yet (attempt {Attempt}/{Attempts}): {Message}", attempt, attempts, ex.Message);
                 await Task.Delay(TimeSpan.FromSeconds(3));
             }
+        }
+    }
+}
+
+/// <summary>
+/// The reverse proxies whose <c>X-Forwarded-For</c> / <c>-Host</c> / <c>-Proto</c> count: <c>MAT_TRUSTED_PROXIES</c>, addresses and networks separated by commas or
+/// spaces (<c>10.253.87.0/24, 172.18.0.5</c>), next to a proxy on the same host (loopback, the default of ASP.NET Core). The address of a visitor guards the
+/// rate limits of the sign-in and of the directory API and is the address of a session: a header from anybody else is ignored, the socket address counts.
+/// Only the last proxy's entry is read (<c>ForwardLimit</c> 1).
+/// </summary>
+public sealed record TrustedProxies(IReadOnlyList<System.Net.IPAddress> Addresses, IReadOnlyList<System.Net.IPNetwork> Networks, IReadOnlyList<string> Invalid)
+{
+    public const string Setting = "MAT_TRUSTED_PROXIES";
+
+    public static TrustedProxies Parse(string? value)
+    {
+        var addresses = new List<System.Net.IPAddress>();
+        var networks = new List<System.Net.IPNetwork>();
+        var invalid = new List<string>();
+        foreach (var entry in (value ?? string.Empty).Split([',', ';', ' ', '\t', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (entry.Contains('/') && System.Net.IPNetwork.TryParse(entry, out var network))
+            {
+                networks.Add(network);
+            }
+            else if (System.Net.IPAddress.TryParse(entry, out var address))
+            {
+                addresses.Add(address);
+            }
+            else
+            {
+                invalid.Add(entry);
+            }
+        }
+
+        return new TrustedProxies(addresses, networks, invalid);
+    }
+
+    /// <summary>Sets the forwarded headers up: the three headers, the last proxy only, the proxies of the setting added to loopback.</summary>
+    public void Apply(ForwardedHeadersOptions options)
+    {
+        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost;
+        options.ForwardLimit = 1;
+        foreach (var address in Addresses)
+        {
+            options.KnownProxies.Add(address);
+        }
+
+        foreach (var network in Networks)
+        {
+            options.KnownIPNetworks.Add(network);
         }
     }
 }

@@ -144,7 +144,8 @@ settings are the one row of `SystemSetting` (Id 1, `SettingsStore`), including t
 **Security**: every page and API call goes through the business layer, which checks the actor again (static classes taking `AppDbContext` + `Actor`); what may not
 be seen answers 404 (`Outcome.Denied` / null). Secrets of data sources are protected with DataProtection (keys in the volume) and never go back to the browser.
 `/Admin/**` and `/Sources/**` need the role Admin (Razor conventions) and the business layer checks `IsAdmin` once more. The directory API checks the key of a
-binding (`MatBindingAccess.Require`) and is rate-limited (`directory`).
+binding (`MatBindingAccess.Require`) and is rate-limited (`directory`). The rate limits and the session address use the address of the visitor: `X-Forwarded-For` counts only from a proxy
+of `MAT_TRUSTED_PROXIES` or on loopback (`TrustedProxies` in Infrastructure.cs, `ForwardLimit` 1); the scheme comes from any sender (`MatForwardedProto`).
 
 **UI (MatDesign rules)**: CRUD = list page (toolbar above, table, pager under it, actions left below, positive → negative) + separate edit page (Save, Back, other
 buttons, space, Delete); entities with several areas get **tabs** (contact: General / Communication / Address / More / Source; address book: General / Access /

@@ -80,6 +80,7 @@ other apps; without it they go under `environment:` of `web`.
 | `MAT_PUBLIC_URL` | the public address (links in mails, the directory API, the name in the self-signed LDAP certificate); while set, it is fixed on Administration → System |
 | `MAT_API_KEY` | the key of the platform API (`/api`) for a broker such as Mattiverse |
 | `MAT_FRAME_ANCESTORS` | the origins that may show MatContactHub in a frame (Mattiverse) |
+| `MAT_TRUSTED_PROXIES` | the reverse proxies (addresses or networks, `10.0.0.0/8, 172.18.0.5`) whose `X-Forwarded-For` names the visitor; without it only a proxy on the same host counts. The address of a visitor keys the rate limits of the sign-in and the directory API |
 | `MATIDENTITY_AUTHORITY`, `_INTERNAL_URL`, `_CLIENT_ID`, `_CLIENT_SECRET` | sign-in through **MatIdentity** (single sign-on of the Mat family; optional) |
 | `MATSMTP_HOST`, `_PORT`, `_USERNAME`, `_PASSWORD`, `_FROM`, `_TLS` | mail through **MatSMTP** (optional) |
 

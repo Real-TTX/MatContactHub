@@ -14,7 +14,6 @@ using MatPlatform;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.DataProtection;
-using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.EntityFrameworkCore;
 
@@ -181,18 +180,26 @@ builder.Services.AddRateLimiter(o =>
         _ => new FixedWindowRateLimiterOptions { PermitLimit = 600, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
 });
 
-builder.Services.Configure<ForwardedHeadersOptions>(o =>
-{
-    // behind a reverse proxy (Caddy, nginx, Traefik) the address and the scheme of the visitor are in the headers
-    o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost;
-    o.KnownIPNetworks.Clear();
-    o.KnownProxies.Clear();
-});
+// Behind a reverse proxy (Matcad, Caddy, nginx, Traefik) the address of the visitor is in X-Forwarded-For: only from a proxy of MAT_TRUSTED_PROXIES (or on the
+// same host), else every client could choose its address and get past the rate limits. The scheme alone comes from any sender (MatForwardedProto, as MatPlatform
+// does with MatIdentity on): an https that is not true only makes the cookies of that client Secure.
+var proxies = TrustedProxies.Parse(builder.Configuration[TrustedProxies.Setting]);
+builder.Services.Configure<ForwardedHeadersOptions>(proxies.Apply);
 
 var app = builder.Build();
 
+if (proxies.Invalid.Count > 0)
+{
+    app.Logger.LogWarning("{Setting}: not an address or a network, ignored: {Entries}", TrustedProxies.Setting, string.Join(", ", proxies.Invalid));
+}
+
 await Database.MigrateWithRetryAsync(app);
 
+app.Use((http, next) =>
+{
+    MatForwardedProto.Apply(http);
+    return next(http);
+});
 app.UseForwardedHeaders();
 if (app.Environment.IsDevelopment())
 {
@@ -207,6 +214,8 @@ app.UseStatusCodePagesWithReExecute("/Error", "?code={0}");
 app.UseMiddleware<SecurityHeaders>();
 app.UseStaticFiles(new StaticFileOptions
 {
+    // robots.txt and llms.txt are UTF-8 (llms.txt has a "…"): said in the type, so no client reads them as windows-1252
+    ContentTypeProvider = new Microsoft.AspNetCore.StaticFiles.FileExtensionContentTypeProvider { Mappings = { [".txt"] = "text/plain; charset=utf-8" } },
     OnPrepareResponse = ctx =>
     {
         // files are versioned with ?v= (asp-append-version): they can be kept for a long time
