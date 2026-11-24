@@ -84,6 +84,9 @@ public sealed class DataSource : SoftEntity
 
     public string? LastError { get; set; }
 
+    /// <summary>The fields the source was last seen with (a JSON array of names, from the preview and the sync): the suggestions of the mapping.</summary>
+    public string? DiscoveredFields { get; set; }
+
     public List<FieldMapping> Mappings { get; set; } = [];
 }
 

@@ -389,6 +389,9 @@ namespace MatContactHub.Data.Migrations
                     b.Property<bool>("DeleteMissing")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("DiscoveredFields")
+                        .HasColumnType("text");
+
                     b.Property<bool>("Enabled")
                         .HasColumnType("boolean");
 
