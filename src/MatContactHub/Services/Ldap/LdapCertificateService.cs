@@ -100,7 +100,7 @@ public static class LdapCertificateService
             s.LdapCertificateSource = LdapCertificateSource.SelfSigned;
             var load = await LoadLockedAsync(db, protection, folder, ct);
             using var cert = load.Certificate;
-            await ActivityLog.AddAsync(db, actor, "ldap", "LDAP", "certificate regenerated", null, ct);
+            await ActivityLog.AddAsync(db, actor, "ldap", "LDAP", ActivityLog.Text("Activity.Detail.CertificateRegenerated"), null, ct);
             return Outcome<LdapCertificateInfo>.Success(Describe(cert, s.LdapCertificateSource, load.Problem));
         }
         finally
@@ -129,7 +129,7 @@ public static class LdapCertificateService
             var load = await LoadLockedAsync(db, protection, folder, ct);
             using var cert = load.Certificate;
             DeleteQuietly(folder, old);
-            await ActivityLog.AddAsync(db, actor, "ldap", "LDAP", "certificate self-signed", null, ct);
+            await ActivityLog.AddAsync(db, actor, "ldap", "LDAP", ActivityLog.Text("Activity.Detail.CertificateSelfSigned"), null, ct);
             return Outcome<LdapCertificateInfo>.Success(Describe(cert, s.LdapCertificateSource, load.Problem));
         }
         finally
@@ -193,7 +193,7 @@ public static class LdapCertificateService
                 DeleteQuietly(folder, old);
             }
 
-            await ActivityLog.AddAsync(db, actor, "ldap", "LDAP", "certificate uploaded: " + inForce.Subject, null, ct);
+            await ActivityLog.AddAsync(db, actor, "ldap", "LDAP", ActivityLog.Text("Activity.Detail.CertificateUploaded", inForce.Subject), null, ct);
             return Outcome<LdapCertificateInfo>.Success(Describe(inForce, s.LdapCertificateSource, load.Problem));
         }
         finally

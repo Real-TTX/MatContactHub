@@ -161,7 +161,7 @@ public static class ContactImport
 
         await db.SaveChangesAsync(ct);
         var book = await db.AddressBooks.AsNoTracking().Where(b => b.Id == addressBookId).Select(b => b.Name).FirstOrDefaultAsync(ct);
-        await ActivityLog.AddAsync(db, actor, "contact", book, Text.T("Contacts.Import.Done", plan.Take.Count, plan.Duplicates, plan.Invalid), null, ct);
+        await ActivityLog.AddAsync(db, actor, "contact", book, ActivityLog.Text("Contacts.Import.Done", plan.Take.Count, plan.Duplicates, plan.Invalid), null, ct);
         return Outcome<ImportResult>.Success(new ImportResult(plan.Take.Count, plan.Duplicates, plan.Invalid));
     }
 

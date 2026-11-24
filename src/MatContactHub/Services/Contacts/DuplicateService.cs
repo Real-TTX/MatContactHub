@@ -200,7 +200,7 @@ public static class DuplicateService
 
         var added = await AddIgnoresAsync(db, ids, ct);
         await db.SaveChangesAsync(ct);
-        await ActivityLog.AddAsync(db, actor, "contact", string.Join(", ", found.Select(c => c.DisplayName).Take(5)), "not a duplicate", null, ct);
+        await ActivityLog.AddAsync(db, actor, "contact", string.Join(", ", found.Select(c => c.DisplayName).Take(5)), ActivityLog.Text("Activity.Detail.NotDuplicate"), null, ct);
         return Outcome<int>.Success(added);
     }
 
@@ -250,7 +250,7 @@ public static class DuplicateService
         // every pair of the kept one and the hidden synced ones: two synced contacts of one merge are no new group of their own
         await AddIgnoresAsync(db, [keep.Id, .. merged.Where(c => c.DataSourceId is not null).Select(c => c.Id)], ct);
         await db.SaveChangesAsync(ct);
-        await ActivityLog.AddAsync(db, actor, "contact", keep.DisplayName, Text.T("Duplicates.Merged.Log", merged.Count), keep.Id, ct);
+        await ActivityLog.AddAsync(db, actor, "contact", keep.DisplayName, ActivityLog.Text("Duplicates.Merged.Log", merged.Count), keep.Id, ct);
         return Outcome<long>.Success(keep.Id);
     }
 

@@ -1,3 +1,6 @@
+using System.Globalization;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using MatContactHub.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -6,6 +9,11 @@ namespace MatContactHub.Services;
 /// <summary>
 /// The log of the administration (Administration → Activity): what was created, changed, deleted, synchronised. Never a secret. The action names the kind of the item
 /// (<see cref="Actions"/>); <c>TargetId</c> is its id, so the activity page links to it.
+/// <para>
+/// The words of an entry are worded in the language of whoever reads the log, not of whoever acted: a text of the catalog is stored as its key and its values
+/// (<see cref="Text"/>, <c>{"k":"Activity.Detail.Created","a":[]}</c>) and worded when it is shown (<see cref="Show"/>); names, addresses and numbers are stored as
+/// they are.
+/// </para>
 /// </summary>
 public static class ActivityLog
 {
@@ -26,6 +34,57 @@ public static class ActivityLog
             CreateUserId = actor.UserId,
         });
         await db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>
+    /// A text of the catalog for <see cref="AddAsync"/> (the target or the detail): its key and its values, worded when the log is read. A value may be such a text
+    /// itself (<c>Text("Sources.Run.Summary", Text("Sources.State.Failed"), 1, 2, 0)</c>).
+    /// </summary>
+    public static string Text(string key, params object?[] values)
+        => new JsonObject { ["k"] = key, ["a"] = new JsonArray([.. values.Select(ValueNode)]) }.ToJsonString(Plain);
+
+    /// <summary>The words of a target or a detail in the language of the reader: a <see cref="Text"/> is worded, anything else is shown as it was stored.</summary>
+    public static string? Show(string? stored)
+    {
+        if (stored is null || !stored.StartsWith(Marker, StringComparison.Ordinal))
+        {
+            return stored;
+        }
+
+        try
+        {
+            return JsonNode.Parse(stored) is JsonObject text ? Words(text) : stored;
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException or FormatException)
+        {
+            // cut at the length of the column, say: shown as it is
+            return stored;
+        }
+    }
+
+    private const string Marker = "{\"k\":";
+
+    // names with umlauts stay readable in the column (and the search of the log finds them)
+    private static readonly JsonSerializerOptions Plain = new() { Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
+
+    private static JsonNode? ValueNode(object? value) => value switch
+    {
+        null => null,
+        string s => JsonValue.Create(s),
+        int i => JsonValue.Create(i),
+        long l => JsonValue.Create(l),
+        _ => JsonValue.Create(Convert.ToString(value, CultureInfo.InvariantCulture)),
+    };
+
+    private static string Words(JsonObject text)
+    {
+        var values = (text["a"] as JsonArray ?? []).Select(v => v switch
+        {
+            JsonValue n when n.GetValueKind() == JsonValueKind.Number => (object)n.GetValue<long>(),
+            JsonValue s when s.GetValueKind() == JsonValueKind.String => Show(s.GetValue<string>()) ?? string.Empty,
+            _ => string.Empty,
+        });
+        return Localization.Text.T(text["k"]!.GetValue<string>(), [.. values]);
     }
 
     /// <summary>The address of the item of an entry, or null (it may not have a page).</summary>
@@ -66,7 +125,9 @@ public static class ActivityLog
             .Select(a => new ActivityRow(a.Id, a.OccurredDate, a.Action, a.Target, a.Detail,
                 db.Users.IgnoreQueryFilters().Where(u => u.Id == a.UserId).Select(u => u.DisplayName).FirstOrDefault() ?? a.Consumer, a.TargetId))
             .ToListAsync(ct);
-        return (rows, total);
+
+        // worded in the language of the reader
+        return ([.. rows.Select(r => r with { Target = Show(r.Target), Detail = Show(r.Detail) })], total);
     }
 
     private static string? Cut(string? text, int max) => text is null ? null : text.Length <= max ? text : text[..max];

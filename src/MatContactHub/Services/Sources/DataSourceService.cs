@@ -168,7 +168,7 @@ public static class DataSourceService
         }
 
         await db.SaveChangesAsync(ct);
-        await ActivityLog.AddAsync(db, actor, "source", source.Name, id is null ? "created" : "changed", source.Id, ct);
+        await ActivityLog.AddAsync(db, actor, "source", source.Name, id is null ? ActivityLog.Text("Activity.Detail.Created") : ActivityLog.Text("Activity.Detail.Changed"), source.Id, ct);
         return Outcome<long>.Success(source.Id);
     }
 
@@ -263,7 +263,7 @@ public static class DataSourceService
         source.SettingsJson = json;
         source.SecretProtected = protectedSecrets;
         await db.SaveChangesAsync(ct);
-        await ActivityLog.AddAsync(db, actor, "source", source.Name, "connection", source.Id, ct);
+        await ActivityLog.AddAsync(db, actor, "source", source.Name, ActivityLog.Text("Activity.Detail.Connection"), source.Id, ct);
         return Outcome<bool>.Success(true);
     }
 
@@ -493,7 +493,7 @@ public static class DataSourceService
         db.FieldMappings.AddRange(kept);
         source.KeyField = key;
         await db.SaveChangesAsync(ct);
-        await ActivityLog.AddAsync(db, actor, "source", source.Name, "mapping", source.Id, ct);
+        await ActivityLog.AddAsync(db, actor, "source", source.Name, ActivityLog.Text("Activity.Detail.Mapping"), source.Id, ct);
         return Outcome<bool>.Success(true);
     }
 
@@ -691,7 +691,7 @@ public static class DataSourceService
             File.Delete(path);
         }
 
-        await ActivityLog.AddAsync(db, actor, "source", source.Name, "deleted", source.Id, ct);
+        await ActivityLog.AddAsync(db, actor, "source", source.Name, ActivityLog.Text("Activity.Detail.Deleted"), source.Id, ct);
         return Outcome<bool>.Success(true);
     }
 

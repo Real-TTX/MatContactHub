@@ -224,7 +224,7 @@ public static class SyncEngine
         await db.SaveChangesAsync(CancellationToken.None);
         if (trigger == SyncTrigger.Manual || state == SyncState.Failed)
         {
-            await ActivityLog.AddAsync(db, actor, "sync", stored.Name, Text.T("Sources.Run.Summary", Text.T("Sources.State." + state), counts.Created, counts.Updated, counts.Deleted),
+            await ActivityLog.AddAsync(db, actor, "sync", stored.Name, ActivityLog.Text("Sources.Run.Summary", ActivityLog.Text("Sources.State." + state), counts.Created, counts.Updated, counts.Deleted),
                 stored.Id, CancellationToken.None);
         }
 

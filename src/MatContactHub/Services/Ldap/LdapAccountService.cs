@@ -186,7 +186,7 @@ public static partial class LdapAccountService
         }
 
         await db.SaveChangesAsync(ct);
-        var detail = id is null ? "created" : newPassword is not null ? "changed, new password" : "changed";
+        var detail = id is null ? ActivityLog.Text("Activity.Detail.Created") : newPassword is not null ? ActivityLog.Text("Activity.Detail.NewPassword") : ActivityLog.Text("Activity.Detail.Changed");
         await ActivityLog.AddAsync(db, actor, "ldap", account.Name, detail, account.Id, ct);
         return Outcome<long>.Success(account.Id);
     }
@@ -201,7 +201,7 @@ public static partial class LdapAccountService
 
         db.LdapAccounts.Remove(account);
         await db.SaveChangesAsync(ct);
-        await ActivityLog.AddAsync(db, actor, "ldap", account.Name, "deleted", account.Id, ct);
+        await ActivityLog.AddAsync(db, actor, "ldap", account.Name, ActivityLog.Text("Activity.Detail.Deleted"), account.Id, ct);
         return Outcome<bool>.Success(true);
     }
 }

@@ -47,7 +47,7 @@ public static class LdapSettingsService
         s.LdapSizeLimit = settings.SizeLimit;
         s.LdapCertificateSource = settings.CertificateSource;
         await db.SaveChangesAsync(ct);
-        await ActivityLog.AddAsync(db, actor, "ldap", "LDAP", "settings", null, ct);
+        await ActivityLog.AddAsync(db, actor, "ldap", "LDAP", ActivityLog.Text("Activity.Detail.Settings"), null, ct);
         return Outcome<LdapSettings>.Success(LdapSettings.From(s));
     }
 

@@ -222,7 +222,7 @@ public static class AddressBookService
         }
 
         await db.SaveChangesAsync(ct);
-        await ActivityLog.AddAsync(db, actor, "addressbook", book.Name, id is null ? "created" : "changed", book.Id, ct);
+        await ActivityLog.AddAsync(db, actor, "addressbook", book.Name, id is null ? ActivityLog.Text("Activity.Detail.Created") : ActivityLog.Text("Activity.Detail.Changed"), book.Id, ct);
         return Outcome<long>.Success(book.Id);
     }
 
@@ -256,7 +256,7 @@ public static class AddressBookService
         }
 
         DirectoryChanges.Bump();
-        await ActivityLog.AddAsync(db, actor, "addressbook", book.Name, Text.T("AddressBooks.Deleted.Log", contacts), book.Id, ct);
+        await ActivityLog.AddAsync(db, actor, "addressbook", book.Name, ActivityLog.Text("AddressBooks.Deleted.Log", contacts), book.Id, ct);
         return Outcome<int>.Success(contacts);
     }
 

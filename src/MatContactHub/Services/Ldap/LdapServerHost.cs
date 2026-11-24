@@ -266,7 +266,7 @@ public sealed class LdapServerHost : BackgroundService, ILdapServerContext
             {
                 using var scope = _scopes.CreateScope();
                 var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                await ActivityLog.AddAsync(db, Actor.System("ldap"), "ldap", name, $"failed bind from {client}", null, CancellationToken.None);
+                await ActivityLog.AddAsync(db, Actor.System("ldap"), "ldap", name, ActivityLog.Text("Activity.Detail.FailedBind", client), null, CancellationToken.None);
             }
             catch (Exception ex)
             {

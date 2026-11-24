@@ -60,7 +60,7 @@ public sealed class LdapAccountServiceTests
         // deleted: the name is free again
         Assert.True((await LdapAccountService.DeleteAsync(t.Db, Admin, saved.Value)).Ok);
         Assert.True((await LdapAccountService.SaveAsync(t.Db, Admin, Passwords, null, Form("starface"), "long enough password")).Ok);
-        Assert.Contains(await t.Db.Activities.Select(a => a.Detail).ToListAsync(), d => d == "deleted");
+        Assert.Contains(await t.Db.Activities.Select(a => a.Detail).ToListAsync(), d => d == ActivityLog.Text("Activity.Detail.Deleted"));
     }
 
     [DbFact]

@@ -223,7 +223,7 @@ public sealed class LdapHostTests
             await Task.Delay(50);
             f.Db.ChangeTracker.Clear();
             done = await f.Db.LdapAccounts.AnyAsync(a => a.Name == "starface" && a.LastBindDate != null)
-                   && await f.Db.Activities.AnyAsync(a => a.Action == "ldap" && a.Detail!.StartsWith("failed bind"));
+                   && await f.Db.Activities.AnyAsync(a => a.Action == "ldap" && a.Detail!.Contains("Activity.Detail.FailedBind"));
         }
         while (!done && DateTime.UtcNow < until);
 

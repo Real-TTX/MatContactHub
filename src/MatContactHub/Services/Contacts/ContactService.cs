@@ -247,7 +247,7 @@ public static class ContactService
                 {
                     contact.Hidden = form.Hidden;
                     await db.SaveChangesAsync(ct);
-                    await ActivityLog.AddAsync(db, actor, "contact", contact.DisplayName, form.Hidden ? "hidden" : "shown", contact.Id, ct);
+                    await ActivityLog.AddAsync(db, actor, "contact", contact.DisplayName, ActivityLog.Text(form.Hidden ? "Activity.Detail.Hidden" : "Activity.Detail.Shown"), contact.Id, ct);
                 }
 
                 return Outcome<long>.Success(contact.Id);
@@ -275,7 +275,7 @@ public static class ContactService
         contact.Hidden = form.Hidden;
         contact.DisplayName = DisplayNameOf(form.DisplayName, contact.FirstName, contact.LastName, contact.Company);
         await db.SaveChangesAsync(ct);
-        await ActivityLog.AddAsync(db, actor, "contact", contact.DisplayName, id is null ? "created" : "changed", contact.Id, ct);
+        await ActivityLog.AddAsync(db, actor, "contact", contact.DisplayName, id is null ? ActivityLog.Text("Activity.Detail.Created") : ActivityLog.Text("Activity.Detail.Changed"), contact.Id, ct);
         return Outcome<long>.Success(contact.Id);
     }
 
@@ -290,7 +290,7 @@ public static class ContactService
 
         db.Contacts.Remove(contact);
         await db.SaveChangesAsync(ct);
-        await ActivityLog.AddAsync(db, actor, "contact", contact.DisplayName, "deleted", contact.Id, ct);
+        await ActivityLog.AddAsync(db, actor, "contact", contact.DisplayName, ActivityLog.Text("Activity.Detail.Deleted"), contact.Id, ct);
         return Outcome<bool>.Success(true);
     }
 
@@ -310,7 +310,7 @@ public static class ContactService
 
         contacts.ForEach(c => c.Hidden = hidden);
         await db.SaveChangesAsync(ct);
-        await ActivityLog.AddAsync(db, actor, "contact", Text.T("Contacts.Count", contacts.Count), hidden ? "hidden" : "shown", null, ct);
+        await ActivityLog.AddAsync(db, actor, "contact", ActivityLog.Text("Contacts.Count", contacts.Count), ActivityLog.Text(hidden ? "Activity.Detail.Hidden" : "Activity.Detail.Shown"), null, ct);
         return contacts.Count;
     }
 
@@ -327,7 +327,7 @@ public static class ContactService
 
         db.Contacts.RemoveRange(contacts);
         await db.SaveChangesAsync(ct);
-        await ActivityLog.AddAsync(db, actor, "contact", Text.T("Contacts.Count", contacts.Count), "deleted", null, ct);
+        await ActivityLog.AddAsync(db, actor, "contact", ActivityLog.Text("Contacts.Count", contacts.Count), ActivityLog.Text("Activity.Detail.Deleted"), null, ct);
         return contacts.Count;
     }
 
