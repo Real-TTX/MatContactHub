@@ -40,7 +40,7 @@ public sealed class IndexModel(AppDbContext db, LdapServerHost server, LdapQuery
     [BindProperty] public int SizeLimit { get; set; } = LdapSettings.DefaultSizeLimit;
 
     public List<Choice> NumberFormats { get; } =
-        [.. Enum.GetValues<NumberFormat>().Select(f => new Choice(f.ToString(), Text.T("Ldap.NumberFormat." + f)))];
+        [.. Enum.GetValues<NumberFormat>().Select(f => new Choice(f.ToString(), Text.T("Ldap.NumberFormat." + f), Text.T("Ldap.NumberFormat." + f + ".Example")))];
 
     public LdapServerStatus Status { get; private set; } = null!;
 

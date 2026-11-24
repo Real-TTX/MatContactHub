@@ -17,7 +17,7 @@
                     <md-field name="LdapsEnabled" kind="switch" label="@L["Ldap.Ldaps"]" value="@Model.LdapsEnabled.ToString()" hint="@L["Ldap.Ldaps.Hint"]" />
                     <md-field name="BaseDn" label="@L["Ldap.BaseDn"]" required value="@Model.BaseDn" maxlength="255" mono autocomplete="off" hint="@L["Ldap.BaseDn.Hint"]" />
                     <md-field name="AllowAnonymous" kind="switch" label="@L["Ldap.AllowAnonymous"]" value="@Model.AllowAnonymous.ToString()" hint="@L["Ldap.AllowAnonymous.Hint"]" />
-                    <md-field name="NumberFormat" kind="select" label="@L["Ldap.NumberFormat"]" value="@Model.NumberFormat" options="Model.NumberFormats" hint="@L["Ldap.NumberFormat.Hint"]" />
+                    <md-field name="NumberFormat" kind="radios" label="@L["Ldap.NumberFormat"]" value="@Model.NumberFormat" options="Model.NumberFormats" hint="@L["Ldap.NumberFormat.Hint"]" />
                     <md-field name="DefaultCountry" label="@L["System.DefaultCountry"]" required value="@Model.DefaultCountry" maxlength="2" autocomplete="off" hint="@L["System.DefaultCountry.Hint"]" />
                     <md-field name="SizeLimit" kind="number" label="@L["Ldap.SizeLimit"]" required value="@Model.SizeLimit" min="1" max="100000" inputmode="numeric" hint="@L["Ldap.SizeLimit.Hint"]" />
                 </div>

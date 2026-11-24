@@ -10,7 +10,7 @@ public sealed class LdapTextTests
     {
         var keys = Pages.Admin.Ldap.IndexModel.Tabs.Select(t => "Ldap.Tab." + t)
             .Concat(new[] { "ok", "empty", "error", "bind" }.Select(o => "Ldap.Log.Outcome." + o))
-            .Concat(Enum.GetNames<Data.NumberFormat>().Select(f => "Ldap.NumberFormat." + f));
+            .Concat(Enum.GetNames<Data.NumberFormat>().SelectMany(f => new[] { "Ldap.NumberFormat." + f, "Ldap.NumberFormat." + f + ".Example" }));
         Assert.All(keys, k => Assert.True(TextCatalog.Entries.ContainsKey(k), k));
     }
 }
