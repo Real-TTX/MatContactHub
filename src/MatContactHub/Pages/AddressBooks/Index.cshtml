@@ -37,7 +37,7 @@
                                 @if (b.AppsEnabled) { <span class="mat-pill mat-pill--plain">@L["AddressBooks.Apps"]</span> }
                             </span>
                         </td>
-                        <td class="mat-table__cell-actions">
+                        <td class="mat-table__cell-actions" data-label="@L["Common.Actions"]">
                             @if (Model.IsAdmin)
                             {
                                 <div class="mat-table__actions"><a class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" href="/AddressBooks/Edit?id=@b.Id" aria-label="@L["Common.EditNamed", b.Name]" data-tip="@L["Common.Edit"]">@Ui.Icon("edit")</a></div>

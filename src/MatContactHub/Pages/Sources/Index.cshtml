@@ -74,7 +74,7 @@
                                 <span class="md-muted">@L["Sources.NextRun.Manual"]</span>
                             }
                         </td>
-                        <td class="mat-table__cell-actions">
+                        <td class="mat-table__cell-actions" data-label="@L["Common.Actions"]">
                             <div class="mat-table__actions">
                                 <form method="post" asp-page-handler="Sync" asp-route-id="@s.Id">
                                     <button type="submit" class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" aria-label="@L["Sources.SyncNamed", s.Name]" data-tip="@L["Sources.SyncNow"]" disabled="@(running || waiting)">@Ui.Icon("refresh")</button>
