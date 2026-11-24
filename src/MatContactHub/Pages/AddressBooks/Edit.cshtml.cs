@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using MatContactHub.Controls;
 using MatContactHub.Data;
@@ -35,7 +36,8 @@ public sealed class EditModel(AppDbContext db) : AppPageModel
 
     [BindProperty] public string Description { get; set; } = string.Empty;
 
-    [BindProperty] public string LdapName { get; set; } = string.Empty;
+    /// <summary>Null when the field was not sent (MatUi sends no hidden field: LDAP off), which keeps the saved name; empty makes one from the name.</summary>
+    [BindProperty, DisplayFormat(ConvertEmptyStringToNull = false)] public string? LdapName { get; set; }
 
     [BindProperty] public bool LdapEnabled { get; set; }
 

@@ -77,9 +77,11 @@ public static class ContactSearch
 
     /// <summary>
     /// The patterns (PostgreSQL regular expressions) a number of a contact must match for <paramref name="search"/>: the digits of the search with any other characters
-    /// between them, and its national significant number when libphonenumber can read the search. Empty when the search is no number.
+    /// between them, and its national significant number when libphonenumber can read the search. Empty when the search is no number. With
+    /// <paramref name="wholeNumber"/> (the caller-ID lookup) the digits must end the number: <c>+49 30 1234</c> finds <c>030 1234</c> and <c>030 1234 ext. 5</c>,
+    /// not the extensions <c>+49 30 1234-567</c>.
     /// </summary>
-    public static IReadOnlyList<string> PhonePatterns(string? search, string? defaultCountry)
+    public static IReadOnlyList<string> PhonePatterns(string? search, string? defaultCountry, bool wholeNumber = false)
     {
         if (string.IsNullOrWhiteSpace(search) || !search.Trim().All(c => char.IsAsciiDigit(c) || c is ' ' or '+' or '(' or ')' or '-' or '/' or '.'))
         {
@@ -92,14 +94,18 @@ public static class ContactSearch
             return [];
         }
 
-        var patterns = new List<string> { DigitsPattern(digits) };
+        var end = wholeNumber ? EndOfNumber : string.Empty;
+        var patterns = new List<string> { DigitsPattern(digits) + end };
         if (NationalNumber(search, defaultCountry) is { } national && national != digits)
         {
-            patterns.Add(DigitsPattern(national));
+            patterns.Add(DigitsPattern(national) + end);
         }
 
         return patterns;
     }
+
+    /// <summary>No more digit of the number follows: only separators up to the end or up to an extension (<c>ext.</c>, <c>x</c>, <c>#</c>, <c>;</c>, <c>,</c>).</summary>
+    private const string EndOfNumber = "(?![^0-9A-Za-z#;,]*[0-9])";
 
     /// <summary>The national significant number of <paramref name="raw"/> (<c>+49 30 1234</c> and <c>030 1234</c> → <c>301234</c>), or null when it is no number.</summary>
     public static string? NationalNumber(string? raw, string? defaultCountry)

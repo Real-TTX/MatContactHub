@@ -57,7 +57,7 @@ public sealed record DuplicateGroup(string Key, IReadOnlyList<DuplicateMatch> Ma
 /// (<see cref="DuplicateIgnore"/>) is never linked. The links are joined into groups (union-find: A~B and B~C is one group). A value that more than
 /// <see cref="MaxShared"/> contacts share (the switchboard of a company, an info@ address) links nobody. A merge keeps one contact: a manual one gets the empty
 /// fields filled from the others; the merged manual contacts are deleted (softly), the merged synced ones hidden (the source would bring them back) and marked as
-/// "not a duplicate" of the kept one.
+/// "not a duplicate" of the kept one and of each other.
 /// </summary>
 public static class DuplicateService
 {
@@ -211,7 +211,7 @@ public static class DuplicateService
     /// <summary>
     /// Merges <paramref name="mergedIds"/> into <paramref name="keepId"/>; the actor must be an editor of every address book involved. A manual kept contact gets its
     /// empty fields from the others (in their order; the e-mail addresses are gathered into its free ones); merged manual contacts are deleted (softly), merged
-    /// synced ones hidden and marked "not a duplicate" of the kept one. Answers the kept id.
+    /// synced ones hidden and marked "not a duplicate" of the kept one and of each other. Answers the kept id.
     /// </summary>
     public static async Task<Outcome<long>> MergeAsync(AppDbContext db, Actor actor, long keepId, IReadOnlyList<long> mergedIds, CancellationToken ct = default)
     {
@@ -247,7 +247,8 @@ public static class DuplicateService
             }
         }
 
-        await AddIgnoresAsync(db, [keep.Id, .. merged.Where(c => c.DataSourceId is not null).Select(c => c.Id)], ct, onlyWith: keep.Id);
+        // every pair of the kept one and the hidden synced ones: two synced contacts of one merge are no new group of their own
+        await AddIgnoresAsync(db, [keep.Id, .. merged.Where(c => c.DataSourceId is not null).Select(c => c.Id)], ct);
         await db.SaveChangesAsync(ct);
         await ActivityLog.AddAsync(db, actor, "contact", keep.DisplayName, Text.T("Duplicates.Merged.Log", merged.Count), keep.Id, ct);
         return Outcome<long>.Success(keep.Id);
@@ -297,8 +298,8 @@ public static class DuplicateService
     private static async Task<HashSet<(long, long)>> IgnoredPairsAsync(AppDbContext db, CancellationToken ct)
         => [.. (await db.DuplicateIgnores.AsNoTracking().Select(i => new { i.ContactIdLow, i.ContactIdHigh }).ToListAsync(ct)).Select(i => (i.ContactIdLow, i.ContactIdHigh))];
 
-    /// <summary>Adds the pairs of <paramref name="ids"/> that are not marked yet (only those with <paramref name="onlyWith"/> when it is given); answers how many.</summary>
-    private static async Task<int> AddIgnoresAsync(AppDbContext db, IReadOnlyList<long> ids, CancellationToken ct, long? onlyWith = null)
+    /// <summary>Adds the pairs of <paramref name="ids"/> that are not marked yet; answers how many.</summary>
+    private static async Task<int> AddIgnoresAsync(AppDbContext db, IReadOnlyList<long> ids, CancellationToken ct)
     {
         var existing = await db.DuplicateIgnores.AsNoTracking().Where(i => ids.Contains(i.ContactIdLow) && ids.Contains(i.ContactIdHigh))
             .Select(i => new { i.ContactIdLow, i.ContactIdHigh }).ToListAsync(ct);
@@ -308,11 +309,6 @@ public static class DuplicateService
         {
             for (var j = i + 1; j < ids.Count; j++)
             {
-                if (onlyWith is { } with && ids[i] != with && ids[j] != with)
-                {
-                    continue;
-                }
-
                 var pair = Pair(ids[i], ids[j]);
                 if (pair.Item1 != pair.Item2 && known.Add(pair))
                 {

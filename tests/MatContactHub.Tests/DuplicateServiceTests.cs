@@ -111,6 +111,27 @@ public sealed class DuplicateServiceTests
     }
 
     [DbFact]
+    public async Task Two_synced_contacts_of_one_merge_are_no_new_group()
+    {
+        await using var t = await TestDatabase.CreateAsync();
+        var book = await BookAsync(t, "Customers");
+        var crm = new DataSource { Name = "CRM", AddressBookId = book.Id, KeyField = "id" };
+        var erp = new DataSource { Name = "ERP", AddressBookId = book.Id, KeyField = "id" };
+        t.Db.DataSources.AddRange(crm, erp);
+        await t.Db.SaveChangesAsync();
+        var keep = await AddAsync(t, new Contact { AddressBookId = book.Id, DisplayName = "Max Mustermann", PhoneBusiness = "030 1234567" });
+        var s1 = await AddAsync(t, new Contact { AddressBookId = book.Id, DataSourceId = crm.Id, ExternalKey = "1", DisplayName = "Mustermann, Max", PhoneBusiness = "+49 30 1234567" });
+        var s2 = await AddAsync(t, new Contact { AddressBookId = book.Id, DataSourceId = erp.Id, ExternalKey = "7", DisplayName = "M. Mustermann", PhoneBusiness = "+49 (30) 1234567" });
+        Assert.Equal([keep.Id, s1.Id, s2.Id], Ids(Assert.Single(await DuplicateService.FindAsync(t.Db, Admin))));
+
+        Assert.True((await DuplicateService.MergeAsync(t.Db, Admin, keep.Id, [s1.Id, s2.Id])).Ok);
+        t.Db.ChangeTracker.Clear();
+
+        Assert.Empty(await DuplicateService.FindAsync(t.Db, Admin));
+        Assert.Equal(3, await t.Db.DuplicateIgnores.CountAsync());
+    }
+
+    [DbFact]
     public async Task Only_what_the_actor_sees_is_grouped_and_only_an_editor_of_every_book_merges()
     {
         await using var t = await TestDatabase.CreateAsync();

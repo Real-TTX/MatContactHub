@@ -214,21 +214,60 @@ public static class VCard
     {
         var lines = text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Split('\n');
         var logical = new List<string>();
+
+        // the line being unfolded: built in one StringBuilder (a PHOTO of iOS or Outlook is folded into thousands of lines; += would copy it every time),
+        // its head (name and parameters, up to the colon) read once from the parts as they come
+        var current = new StringBuilder();
+        var started = false;
+        var colon = -1;
+        var quoted = false;
+        var quotedPrintable = false;
+        void Append(string part, int from)
+        {
+            var offset = current.Length - from;
+            current.Append(part, from, part.Length - from);
+            for (var i = from; colon < 0 && i < part.Length; i++)
+            {
+                if (part[i] == '"')
+                {
+                    quoted = !quoted;
+                }
+                else if (part[i] == ':' && !quoted)
+                {
+                    colon = offset + i;
+                    quotedPrintable = colon > 0 && current.ToString(0, colon).Contains("QUOTED-PRINTABLE", StringComparison.OrdinalIgnoreCase);
+                }
+            }
+        }
+
         foreach (var line in lines)
         {
-            if (line.Length > 0 && (line[0] == ' ' || line[0] == '\t') && logical.Count > 0)
+            if (started && line.Length > 0 && (line[0] == ' ' || line[0] == '\t'))
             {
-                logical[^1] += line[1..];
+                Append(line, 1);
             }
-            else if (logical.Count > 0 && logical[^1].EndsWith('=') && IsQuotedPrintable(logical[^1]))
+            else if (started && quotedPrintable && current.Length > 0 && current[^1] == '=')
             {
                 // a soft line break of quoted-printable (vCard 2.1): the value goes on in this line
-                logical[^1] = logical[^1][..^1] + line;
+                current.Length--;
+                Append(line, 0);
             }
             else
             {
-                logical.Add(line);
+                if (started)
+                {
+                    logical.Add(current.ToString());
+                }
+
+                current.Clear();
+                (started, colon, quoted, quotedPrintable) = (true, -1, false, false);
+                Append(line, 0);
             }
+        }
+
+        if (started)
+        {
+            logical.Add(current.ToString());
         }
 
         foreach (var line in logical)
@@ -238,12 +277,6 @@ public static class VCard
                 yield return property;
             }
         }
-    }
-
-    private static bool IsQuotedPrintable(string line)
-    {
-        var colon = ValueStart(line);
-        return colon > 0 && line[..colon].Contains("QUOTED-PRINTABLE", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>The position of the colon that ends the name and the parameters (a colon inside a quoted parameter value does not count).</summary>
@@ -384,8 +417,9 @@ public static class VCard
         return encoding.GetString([.. bytes]);
     }
 
-    /// <summary>The parts of a structured value (split at unescaped <paramref name="separator"/>), each unescaped.</summary>
-    private static List<string> Split(string value, char separator)
+    /// <summary>The parts of a structured value (split at unescaped <paramref name="separator"/>), each unescaped (with <paramref name="unescape"/> false still escaped,
+    /// for a part that is split again: the prefixes of N at their own commas).</summary>
+    private static List<string> Split(string value, char separator, bool unescape = true)
     {
         var parts = new List<string>();
         var sb = new StringBuilder();
@@ -399,7 +433,7 @@ public static class VCard
             }
             else if (ch == separator)
             {
-                parts.Add(Unescape(sb.ToString()));
+                parts.Add(unescape ? Unescape(sb.ToString()) : sb.ToString());
                 sb.Clear();
             }
             else
@@ -408,7 +442,7 @@ public static class VCard
             }
         }
 
-        parts.Add(Unescape(sb.ToString()));
+        parts.Add(unescape ? Unescape(sb.ToString()) : sb.ToString());
         return parts;
     }
 
@@ -455,10 +489,11 @@ public static class VCard
                     form.DisplayName = Clean(Unescape(p.Value));
                     break;
                 case "N":
-                    var n = Split(p.Value, ';');
-                    form.LastName = Clean(At(n, 0));
-                    form.FirstName = Clean(At(n, 1));
-                    form.MiddleName = Clean(At(n, 2));
+                    // split without unescaping: an escaped comma inside a prefix (Title "Dr., MBA") is no separator of the prefixes
+                    var n = Split(p.Value, ';', unescape: false);
+                    form.LastName = Clean(Unescape(At(n, 0) ?? string.Empty));
+                    form.FirstName = Clean(Unescape(At(n, 1) ?? string.Empty));
+                    form.MiddleName = Clean(Unescape(At(n, 2) ?? string.Empty));
                     var prefixes = Split(At(n, 3) ?? string.Empty, ',').Select(Clean).OfType<string>().ToList();
                     if (prefixes.Count >= 2)
                     {

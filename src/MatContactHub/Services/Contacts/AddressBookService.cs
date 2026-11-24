@@ -13,9 +13,10 @@ public sealed record AddressBookAccessEntry(long UserId, AddressBookRole Role);
 
 /// <summary>
 /// What the edit page of an address book shows and sends. <see cref="Access"/> null leaves the roles as they are (a caller without the tab Access); a list replaces
-/// them (a person not in it loses the role).
+/// them (a person not in it loses the role). <see cref="LdapName"/> null keeps the LDAP name of an address book (the field is hidden while LDAP is off), empty makes
+/// one from the name.
 /// </summary>
-public sealed record AddressBookForm(string Name, string? Description, string LdapName, bool LdapEnabled, bool AppsEnabled, bool IsShared, string? Color, int SortOrder,
+public sealed record AddressBookForm(string Name, string? Description, string? LdapName, bool LdapEnabled, bool AppsEnabled, bool IsShared, string? Color, int SortOrder,
     IReadOnlyList<AddressBookAccessEntry>? Access = null);
 
 /// <summary>A person with a role in an address book, for the tab Access.</summary>
@@ -157,19 +158,7 @@ public static class AddressBookService
             return Outcome<long>.Fail(Text.T("AddressBooks.Name.Invalid"));
         }
 
-        // LDAP compares ou values without case (caseIgnoreMatch): the name is kept in small letters, so the unique index sees Kunden and kunden as one
-        var ldapName = string.IsNullOrWhiteSpace(form.LdapName) ? LdapNameOf(name) : form.LdapName.Trim().ToLowerInvariant();
-        if (!IsLdapName(ldapName))
-        {
-            return Outcome<long>.Fail(Text.T("AddressBooks.LdapName.Invalid"));
-        }
-
-        if (await db.AddressBooks.AnyAsync(a => a.LdapName == ldapName && a.Id != (id ?? 0), ct))
-        {
-            return Outcome<long>.Fail(Text.T("AddressBooks.LdapName.Taken"));
-        }
-
-        AddressBook? book;
+        AddressBook? book = null;
         if (id is { } existing)
         {
             book = await db.AddressBooks.FirstOrDefaultAsync(a => a.Id == existing, ct);
@@ -178,7 +167,34 @@ public static class AddressBookService
                 return Outcome<long>.Denied();
             }
         }
+
+        // LDAP compares ou values without case (caseIgnoreMatch): the name is kept in small letters, so the unique index sees Kunden and kunden as one.
+        // null (a caller without the field, e.g. the form while LDAP is off and the field is hidden) keeps the name an address book has; empty makes one
+        // from the name, with -2, -3 … when another address book has it already. Only a typed name is refused as taken.
+        string ldapName;
+        if (form.LdapName is null && book is not null)
+        {
+            ldapName = book.LdapName;
+        }
+        else if (string.IsNullOrWhiteSpace(form.LdapName))
+        {
+            ldapName = await FreeLdapNameAsync(db, LdapNameOf(name), id ?? 0, ct);
+        }
         else
+        {
+            ldapName = form.LdapName.Trim().ToLowerInvariant();
+            if (!IsLdapName(ldapName))
+            {
+                return Outcome<long>.Fail(Text.T("AddressBooks.LdapName.Invalid"));
+            }
+
+            if (await db.AddressBooks.AnyAsync(a => a.LdapName == ldapName && a.Id != (id ?? 0), ct))
+            {
+                return Outcome<long>.Fail(Text.T("AddressBooks.LdapName.Taken"));
+            }
+        }
+
+        if (book is null)
         {
             book = new AddressBook();
             db.AddressBooks.Add(book);
@@ -300,6 +316,28 @@ public static class AddressBookService
 
         text = text.Trim('-');
         return text.Length == 0 ? "contacts" : text.Length > 64 ? text[..64].TrimEnd('-') : text;
+    }
+
+    /// <summary>A made LDAP name no other address book has: the name itself, otherwise the name with -2, -3 … (within 64 characters).</summary>
+    private static async Task<string> FreeLdapNameAsync(AppDbContext db, string made, long ownId, CancellationToken ct)
+    {
+        var stem = made.Length > 58 ? made[..58].TrimEnd('-') : made;
+        var prefix = stem + "-";
+        var taken = (await db.AddressBooks.Where(a => a.Id != ownId && (a.LdapName == made || a.LdapName.StartsWith(prefix)))
+            .Select(a => a.LdapName).ToListAsync(ct)).ToHashSet(StringComparer.Ordinal);
+        if (!taken.Contains(made))
+        {
+            return made;
+        }
+
+        for (var n = 2; ; n++)
+        {
+            var candidate = prefix + n.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            if (!taken.Contains(candidate))
+            {
+                return candidate;
+            }
+        }
     }
 
     /// <summary>A valid LDAP name: 1 to 64 letters, digits, <c>-</c> and <c>_</c>, starting with a letter or digit.</summary>

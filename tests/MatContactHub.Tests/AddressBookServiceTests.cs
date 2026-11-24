@@ -10,7 +10,7 @@ public sealed class AddressBookServiceTests
 {
     private static readonly Actor Admin = Actor.System("test");
 
-    private static AddressBookForm Form(string name, string? ldapName = null, string? color = null) => new(name, null, ldapName ?? string.Empty, true, false, false, color, 0);
+    private static AddressBookForm Form(string name, string? ldapName = null, string? color = null) => new(name, null, ldapName, true, false, false, color, 0);
 
     [DbFact]
     public async Task The_LDAP_name_is_kept_in_small_letters_and_unique_without_case()
@@ -36,6 +36,29 @@ public sealed class AddressBookServiceTests
         t.Db.ChangeTracker.Clear();
         t.Db.LdapAccounts.Add(new LdapAccount { Name = "STARFACE", PasswordHash = "x" });
         await Assert.ThrowsAsync<DbUpdateException>(() => t.Db.SaveChangesAsync());
+    }
+
+    [DbFact]
+    public async Task A_save_without_the_LDAP_name_keeps_it_and_an_empty_one_makes_a_free_one()
+    {
+        await using var t = await TestDatabase.CreateAsync();
+        var crm = (await AddressBookService.SaveAsync(t.Db, Admin, null, Form("Kunden", "crm-kunden"))).Value;
+        var other = (await AddressBookService.SaveAsync(t.Db, Admin, null, Form("Other", "kunden"))).Value;
+
+        // the form while LDAP is off: the hidden field sends nothing, the name stays (and is not "kunden", which another book has)
+        var off = new AddressBookForm("Kunden", "Changed", null, false, false, false, null, 0);
+        Assert.True((await AddressBookService.SaveAsync(t.Db, Admin, crm, off)).Ok);
+        Assert.Equal("crm-kunden", (await AddressBookService.GetAsync(t.Db, Admin, crm))!.LdapName);
+
+        // an emptied field makes a name from the name, one that is free
+        Assert.True((await AddressBookService.SaveAsync(t.Db, Admin, crm, Form("Kunden", string.Empty))).Ok);
+        Assert.Equal("kunden-2", (await AddressBookService.GetAsync(t.Db, Admin, crm))!.LdapName);
+
+        // a new book without the field gets a free name too; a typed one that is taken is refused
+        var third = await AddressBookService.SaveAsync(t.Db, Admin, null, Form("Kunden"));
+        Assert.True(third.Ok);
+        Assert.Equal("kunden-3", (await AddressBookService.GetAsync(t.Db, Admin, third.Value))!.LdapName);
+        Assert.False((await AddressBookService.SaveAsync(t.Db, Admin, other, Form("Other", "kunden-2"))).Ok);
     }
 
     [DbFact]

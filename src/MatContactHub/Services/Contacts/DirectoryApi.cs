@@ -93,13 +93,15 @@ public static class DirectoryApi
     {
         var country = await ContactService.DefaultCountryAsync(db, ct);
         var wanted = PhoneNormalizer.Normalize(number, country);
-        var patterns = ContactSearch.PhonePatterns(number, country);
+        var patterns = ContactSearch.PhonePatterns(number, country, wholeNumber: true);
         if (wanted is null || patterns.Count == 0)
         {
             return null;
         }
 
-        var candidates = await ContactSearch.WherePhone(await ReadableAsync(db, actor, ct), patterns).Include(c => c.AddressBook).Take(500).ToListAsync(ct);
+        // the numbers that end in the digits (not the extensions of a switchboard); compared in E.164 below
+        var candidates = await ContactSearch.WherePhone(await ReadableAsync(db, actor, ct), patterns).Include(c => c.AddressBook).OrderBy(c => c.Id).Take(500)
+            .ToListAsync(ct);
         var best = candidates
             .SelectMany(c => ContactFields.Phones.Select((field, rank) => (Contact: c, Field: field, Rank: rank, Number: field.Get(c))))
             .Where(x => x.Number is not null && PhoneNormalizer.Normalize(x.Number, country) == wanted)

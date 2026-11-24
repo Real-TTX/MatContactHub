@@ -127,4 +127,42 @@ public sealed class ContactVCardTests
         Assert.Equal(escaped, VCard.Escape(value));
         Assert.Equal(value.Replace("\r\n", "\n", StringComparison.Ordinal), VCard.Unescape(escaped));
     }
+
+    [Theory]
+    [InlineData(VCardVersion.V3, "Frau", "Dr., MBA")]
+    [InlineData(VCardVersion.V4, "Frau", "Dr., MBA")]
+    [InlineData(VCardVersion.V3, null, "Dr., MBA")]
+    [InlineData(VCardVersion.V3, "Herr", "Prof. Dr.")]
+    public void A_salutation_and_a_title_with_a_comma_come_back(VCardVersion version, string? salutation, string title)
+    {
+        var c = Sample();
+        (c.Salutation, c.Title) = (salutation, title);
+        var back = Assert.Single(VCard.Read(VCard.Write([c], version)));
+        Assert.Equal((salutation, title), (back.Salutation, back.Title));
+    }
+
+    [Fact]
+    public void A_photo_folded_into_many_lines_is_unfolded_in_linear_time()
+    {
+        // 10 MB of base64 in 140 000 folded lines (the reader drops the photo) and a quoted-printable note with 20 000 soft line breaks
+        var sb = new StringBuilder("BEGIN:VCARD\r\nVERSION:2.1\r\nFN:Foto\r\nPHOTO;ENCODING=BASE64;TYPE=JPEG:");
+        var chunk = new string('A', 74);
+        for (var i = 0; i < 140_000; i++)
+        {
+            sb.Append(chunk).Append("\r\n ");
+        }
+
+        sb.Append("AA==\r\nNOTE;ENCODING=QUOTED-PRINTABLE:");
+        for (var i = 0; i < 20_000; i++)
+        {
+            sb.Append("ab=\r\n");
+        }
+
+        sb.Append("c\r\nEND:VCARD\r\n");
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        var card = Assert.Single(VCard.Read(sb.ToString()));
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(10), watch.Elapsed.ToString());
+        Assert.Equal("Foto", card.DisplayName);
+        Assert.Equal(string.Concat(Enumerable.Repeat("ab", 20_000)) + "c", card.Notes);
+    }
 }

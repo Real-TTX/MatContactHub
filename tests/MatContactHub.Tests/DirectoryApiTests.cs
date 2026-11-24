@@ -160,4 +160,24 @@ public sealed class DirectoryApiTests : IAsyncLifetime
         var hit = await DirectoryApi.FindAsync(_database!.Db, Actor.ForConsumer("matphone"), "+49 30 1234567");
         Assert.Equal(("Max Mustermann", "business"), (hit!.DisplayName, hit.NumberType));
     }
+
+    [DbFact]
+    public async Task A_switchboard_is_found_among_more_extensions_than_the_lookup_reads()
+    {
+        // 600 extensions +49 30 9876543-NNN (written first) and the switchboard +49 30 9876543 itself (written last): the extensions are no candidates
+        var db = _database!.Db;
+        var book = await db.AddressBooks.SingleAsync(b => b.LdapName == "customers");
+        for (var i = 0; i < 600; i++)
+        {
+            db.Contacts.Add(new Contact { AddressBookId = book.Id, DisplayName = $"Extension {i:000}", PhoneBusiness = $"+49 30 9876543-{i:000}" });
+        }
+
+        await db.SaveChangesAsync();
+        db.Contacts.Add(new Contact { AddressBookId = book.Id, DisplayName = "Big Company", PhoneBusiness = "030 / 987 65 43" });
+        await db.SaveChangesAsync();
+
+        var hit = await DirectoryApi.FindAsync(db, Actor.ForConsumer("matphone"), "+49 30 9876543");
+        Assert.Equal("Big Company", hit?.DisplayName);
+        Assert.Equal("Extension 042", (await DirectoryApi.FindAsync(db, Actor.ForConsumer("matphone"), "030 9876543042"))?.DisplayName);
+    }
 }
