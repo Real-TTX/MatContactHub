@@ -155,9 +155,6 @@ public sealed class EditModel(AppDbContext db) : AppPageModel
         return export.Count == 0 ? NotFound() : ContactView.Download(export);
     }
 
-    /// <summary>The id of a field of the form (<c>Form_FirstName</c>).</summary>
-    public static string FieldId(string name) => "Form_" + name;
-
     private async Task<ContactDetail?> LoadAsync(long id)
     {
         Detail = await ContactService.GetAsync(db, Actor.ForUser(Me), id, HttpContext.RequestAborted);

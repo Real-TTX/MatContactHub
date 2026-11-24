@@ -192,9 +192,6 @@ public static class LdapDn
         return sb.ToString();
     }
 
-    /// <summary>The parent of a normalized DN (<c>ou=a,dc=b</c> → <c>dc=b</c>; the root's parent is null).</summary>
-    public static string? ParentOf(IReadOnlyList<LdapRdn> rdns) => rdns.Count == 0 ? null : Join(rdns.Skip(1));
-
     private static void Flush(StringBuilder value, List<byte> bytes)
     {
         if (bytes.Count > 0)

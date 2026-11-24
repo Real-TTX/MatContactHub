@@ -71,23 +71,6 @@ public static class ContactView
         return new HtmlString($"<a{cls} href=\"mailto:{WebUtility.HtmlEncode(Uri.EscapeDataString(mail.Trim()).Replace("%40", "@", StringComparison.Ordinal))}\">{WebUtility.HtmlEncode(mail)}</a>");
     }
 
-    /// <summary>A website as a link that opens a new tab (http or https only; an address without a scheme gets https).</summary>
-    public static IHtmlContent WebLink(string? website)
-    {
-        if (string.IsNullOrWhiteSpace(website))
-        {
-            return HtmlString.Empty;
-        }
-
-        var url = website.Contains("://", StringComparison.Ordinal) ? website.Trim() : "https://" + website.Trim();
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
-        {
-            return new HtmlString(WebUtility.HtmlEncode(website));
-        }
-
-        return new HtmlString($"<a href=\"{WebUtility.HtmlEncode(uri.AbsoluteUri)}\" target=\"_blank\" rel=\"noopener noreferrer\">{WebUtility.HtmlEncode(website)}</a>");
-    }
-
     /// <summary>The round avatar with the initials, tinted with the colour of the address book (<c>data-colour</c>; the toolkit writes it into <c>--mat-swatch</c>).</summary>
     public static IHtmlContent Avatar(string name, string? colour, string size = "sm")
     {
