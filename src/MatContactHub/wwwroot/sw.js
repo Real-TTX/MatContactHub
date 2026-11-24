@@ -4,7 +4,7 @@
      network what was seen last is still shown (read-only: every change needs the network). Other pages without a network: the offline page with a button to try
      again.
    - The platform API, the directory API, the search suggestions and every change (POST) are never touched. */
-const VERSION = 'matcontacthub-v1';
+const VERSION = 'matcontacthub-v2';
 const PAGES = 'mch-pages'; // the same name in js/pwa.js, which deletes it on sign-out
 const SHELL = [
   '/offline.html', '/js/offline.js', '/js/pwa.js', '/js/util.js', '/matui/matui.css', '/matui/matui.js', '/matui/matui.boot.js', '/css/app.css', '/favicon.svg',
@@ -30,7 +30,8 @@ self.addEventListener('message', event => {
 });
 
 const isStatic = url => /^\/(matui|css|js|img)\//.test(url.pathname) || ['/favicon.svg', '/manifest.webmanifest', '/offline.html'].includes(url.pathname);
-const isReadPage = url => /^\/(Contacts|Contacts\/Edit|AddressBooks|Duplicates)$/i.test(url.pathname);
+// the pages to read: the list of the contacts (with its search, filters and pages), a contact, the address books, the duplicates; never a handler (an export, the suggestions)
+const isReadPage = url => /^\/(Contacts|Contacts\/Edit|AddressBooks|Duplicates)$/i.test(url.pathname) && !url.searchParams.has('handler');
 
 function trim(cache, max) {
   return cache.keys().then(keys => (keys.length > max ? Promise.all(keys.slice(0, keys.length - max).map(k => cache.delete(k))) : undefined));

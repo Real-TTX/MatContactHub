@@ -63,7 +63,8 @@ public sealed record ContactDetail(
     string AddressBook,
     string? AddressBookColor,
     DateTime Created,
-    DateTime Changed);
+    DateTime Changed,
+    string Name);
 
 /// <summary>A wrong value of a form: the field (the property of <see cref="ContactForm"/>, empty for the whole form) and the message.</summary>
 public sealed record ContactFieldError(string Field, string Message);
@@ -143,8 +144,15 @@ public static class ContactService
             return null;
         }
 
-        return new ContactDetail(c.Id, c.Token, ContactForm.Of(c), c.DataSourceId is not null, c.DataSourceId, c.DataSource?.Name, c.ExternalKey, c.LastSyncDate, role,
-            c.AddressBook?.Name ?? string.Empty, c.AddressBook?.Color, c.CreateDate, c.UpdateDate);
+        // a display name that is only "First Last" (or the company) stays empty in the form, so it follows a changed name; a synced one is shown as it is
+        var form = ContactForm.Of(c);
+        if (c.DataSourceId is null && c.DisplayName == DisplayNameOf(null, c.FirstName, c.LastName, c.Company))
+        {
+            form.DisplayName = null;
+        }
+
+        return new ContactDetail(c.Id, c.Token, form, c.DataSourceId is not null, c.DataSourceId, c.DataSource?.Name, c.ExternalKey, c.LastSyncDate, role,
+            c.AddressBook?.Name ?? string.Empty, c.AddressBook?.Color, c.CreateDate, c.UpdateDate, c.DisplayName);
     }
 
     /// <summary>

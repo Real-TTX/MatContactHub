@@ -75,9 +75,9 @@
                                     <td data-label="@L["AddressBooks.Access.Role"]">
                                         <fieldset class="mat-fieldset md-role">
                                             <legend class="mat-sr-only">@L["AddressBooks.Access.RoleOf", name]</legend>
-                                            <div class="mat-options">
-                                                <label class="mat-option"><input type="radio" id="Access_@(i)_Viewer" name="Access[@i].Role" value="Viewer" checked="@(a.Role != AddressBookRole.Editor)" /><span>@L["AddressBooks.Role.Viewer"]</span></label>
-                                                <label class="mat-option"><input type="radio" id="Access_@(i)_Editor" name="Access[@i].Role" value="Editor" checked="@(a.Role == AddressBookRole.Editor)" /><span>@L["AddressBooks.Role.Editor"]</span></label>
+                                            <div class="mat-checks mat-checks--inline">
+                                                <label class="mat-check"><input type="radio" id="Access_@(i)_Viewer" name="Access[@i].Role" value="Viewer" checked="@(a.Role != AddressBookRole.Editor)" /><span class="mat-check__text">@L["AddressBooks.Role.Viewer"]</span></label>
+                                                <label class="mat-check"><input type="radio" id="Access_@(i)_Editor" name="Access[@i].Role" value="Editor" checked="@(a.Role == AddressBookRole.Editor)" /><span class="mat-check__text">@L["AddressBooks.Role.Editor"]</span></label>
                                             </div>
                                         </fieldset>
                                     </td>
@@ -99,9 +99,9 @@
                         <md-field name="NewUserId" kind="select" label="@L["AddressBooks.Access.Add.Person"]" options="Model.Candidates" placeholder="@L["AddressBooks.Access.Add.Choose"]" picker="search" />
                         <fieldset class="mat-field mat-fieldset">
                             <legend class="mat-label">@L["AddressBooks.Access.Role"]</legend>
-                            <div class="mat-options">
-                                <label class="mat-option"><input type="radio" id="NewRole_Viewer" name="NewRole" value="Viewer" checked /><span>@L["AddressBooks.Role.Viewer"]</span></label>
-                                <label class="mat-option"><input type="radio" id="NewRole_Editor" name="NewRole" value="Editor" /><span>@L["AddressBooks.Role.Editor"]</span></label>
+                            <div class="mat-checks mat-checks--inline">
+                                <label class="mat-check"><input type="radio" id="NewRole_Viewer" name="NewRole" value="Viewer" checked /><span class="mat-check__text">@L["AddressBooks.Role.Viewer"]</span></label>
+                                <label class="mat-check"><input type="radio" id="NewRole_Editor" name="NewRole" value="Editor" /><span class="mat-check__text">@L["AddressBooks.Role.Editor"]</span></label>
                             </div>
                         </fieldset>
                         <button type="submit" class="mat-btn mat-btn--secondary" formaction="@addUrl">@Ui.Icon("plus")<span>@L["AddressBooks.Access.Add"]</span></button>

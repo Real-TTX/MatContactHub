@@ -144,7 +144,7 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 
 /* the head of a contact: the avatar, the name and what it is, the numbers and the address to call or write to */
 .md-contact-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mat-space-4); }
-.md-contact-head__text { display: flex; flex-direction: column; gap: var(--mat-space-1); flex: 1 1 16rem; min-width: 0; }
+.md-contact-head__text { display: flex; flex-direction: column; gap: var(--mat-space-1); flex: 1 1 12rem; min-width: 0; }
 .md-contact-head__name { font-size: var(--mat-fs-lg); }
 .md-contact-head__links { display: flex; flex-wrap: wrap; gap: var(--mat-space-2); }
 
@@ -158,7 +158,16 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 .md-add-line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mat-space-3) var(--mat-space-5); }
 .md-add-line > .mat-field:first-child { flex: 1 1 18rem; }
 .md-add-line > .mat-fieldset { flex: none; }
-.md-role .mat-options { flex-wrap: nowrap; }
+.md-role .mat-checks { flex-wrap: nowrap; }
 
 /* the DN of an address book as the LDAP server serves it */
 .md-dn { display: block; padding: var(--mat-space-2) var(--mat-space-3); border-radius: var(--mat-radius); background: var(--mat-surface-2); }
+
+/* the list of the contacts on a phone: a card per contact with the check at its left, the name (avatar, job, pills) and the numbers to tap under it, without labels */
+@media (max-width: 720px) {
+  .md-contacts .mat-table tbody tr { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: var(--mat-space-3); align-items: start; }
+  .md-contacts .mat-table tbody td { grid-column: 2; justify-content: flex-start; text-align: left; }
+  .md-contacts .mat-table tbody td::before { content: none; }
+  .md-contacts .mat-table tbody td.mat-table__select { grid-column: 1; grid-row: 1 / span 6; width: auto; padding-top: 4px; }
+  .md-contacts .md-numbers { flex-direction: row; flex-wrap: wrap; gap: var(--mat-space-1) var(--mat-space-4); padding-left: calc(26px + var(--mat-space-3)); }
+}

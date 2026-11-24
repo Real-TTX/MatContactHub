@@ -89,7 +89,8 @@ public sealed class IndexModel(AppDbContext db) : AppPageModel
 
         if (merged.Ok)
         {
-            Flash(Text.T("Duplicates.Merged", ids.Count(id => id != keep)));
+            var count = ids.Count(id => id != keep);
+            Flash(Text.T("Duplicates.Merged", count + 1));
         }
         else
         {

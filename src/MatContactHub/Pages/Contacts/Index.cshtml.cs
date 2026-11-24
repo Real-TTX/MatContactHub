@@ -108,11 +108,11 @@ public sealed class IndexModel(AppDbContext db) : AppPageModel
             case "hide":
             case "show":
                 var changed = await ContactService.SetHiddenAsync(db, actor, ids, action == "hide", ct);
-                Flash(Text.T(action == "hide" ? "Contacts.Selection.Hidden" : "Contacts.Selection.Shown", changed));
+                Flash(changed == 1 ? Text.T(action == "hide" ? "Contacts.Selection.HiddenOne" : "Contacts.Selection.ShownOne") : Text.T(action == "hide" ? "Contacts.Selection.Hidden" : "Contacts.Selection.Shown", changed));
                 break;
             case "delete":
                 var deleted = await ContactService.DeleteManyAsync(db, actor, ids, ct);
-                Flash(Text.T("Contacts.Selection.Deleted", deleted));
+                Flash(deleted == 1 ? Text.T("Contacts.Selection.DeletedOne") : Text.T("Contacts.Selection.Deleted", deleted));
                 break;
         }
 

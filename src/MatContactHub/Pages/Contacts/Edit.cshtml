@@ -17,9 +17,9 @@
     {
         <div class="mat-card md-contact-card">
             <div class="mat-card__body md-contact-head">
-                @ContactView.Avatar(d.Form.DisplayName ?? string.Empty, d.AddressBookColor, "lg")
+                @ContactView.Avatar(d.Name, d.AddressBookColor, "lg")
                 <div class="md-contact-head__text">
-                    <strong class="md-contact-head__name">@d.Form.DisplayName</strong>
+                    <strong class="md-contact-head__name">@d.Name</strong>
                     @{ var line = string.Join(" · ", new[] { d.Form.JobTitle, d.Form.Department, d.Form.Company }.Where(x => !string.IsNullOrWhiteSpace(x))); }
                     @if (line.Length > 0) { <span class="md-muted">@line</span> }
                     <span class="md-pills">
@@ -31,7 +31,7 @@
                 <div class="md-contact-head__links">
                     @foreach (var number in new[] { d.Form.PhoneBusiness, d.Form.PhoneMobile }.Where(n => ContactView.Tel(n) is not null))
                     {
-                        <a class="mat-btn mat-btn--secondary mat-btn--sm" href="@ContactView.Tel(number)">@Ui.Icon(number == d.Form.PhoneMobile ? "smartphone" : "user")<span class="mat-mono">@number</span></a>
+                        <a class="mat-btn mat-btn--secondary mat-btn--sm" href="@ContactView.Tel(number)">@Ui.Icon(number == d.Form.PhoneMobile ? "smartphone" : "briefcase")<span class="mat-mono">@number</span></a>
                     }
                     @if (!string.IsNullOrWhiteSpace(d.Form.Email))
                     {

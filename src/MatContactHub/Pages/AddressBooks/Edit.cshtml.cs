@@ -75,7 +75,7 @@ public sealed class EditModel(AppDbContext db) : AppPageModel
     ];
 
     /// <summary>The people who can still be added (not in the list yet).</summary>
-    public IEnumerable<Choice> Candidates => People.Where(p => Access.All(a => a.UserId != p.UserId))
+    public IEnumerable<Choice> Candidates => People.Where(p => !p.IsAdmin && Access.All(a => a.UserId != p.UserId))
         .Select(p => new Choice(p.UserId.ToString(CultureInfo.InvariantCulture), p.DisplayName, p.Email));
 
     public AddressBookPerson? PersonOf(long userId) => People.FirstOrDefault(p => p.UserId == userId);

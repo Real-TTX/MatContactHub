@@ -46,7 +46,7 @@ public sealed class DuplicateServiceTests
         var chain = groups[0];
         Assert.Equal([a.Id, b.Id, c.Id], Ids(chain));
         Assert.Equal([DuplicateReason.Phone, DuplicateReason.Email], chain.Reasons);
-        Assert.Contains(chain.Matches, m => m.Value == "+49301234567");
+        Assert.Contains(chain.Matches, m => m.Value == "030 1234567");
         Assert.Contains(chain.Matches, m => m.Value == "max@acme.example");
         Assert.True(chain.CanChange);
 

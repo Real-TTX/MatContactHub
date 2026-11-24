@@ -52,7 +52,7 @@ public sealed class EditModel(AppDbContext db) : AppPageModel
     public List<Choice> AddressBooks { get; private set; } = [];
 
     /// <summary>The name in the head of the page and the breadcrumb.</summary>
-    public string Title => IsNew ? Text.T("Contacts.New") : Detail?.Form.DisplayName ?? string.Empty;
+    public string Title => IsNew ? Text.T("Contacts.New") : Detail?.Name ?? string.Empty;
 
     public async Task<IActionResult> OnGetAsync(long? book)
     {

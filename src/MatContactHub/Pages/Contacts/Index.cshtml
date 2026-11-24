@@ -9,7 +9,7 @@
 
 @* The list of the contacts (LIST-05): toolbar, chips, table, pager, then the actions of a selection and those of the list. The checks belong to the form of the
    selection (form="contacts-pick"): the toolbar has a GET form of its own, and forms cannot be nested. *@
-<div class="mat-list" data-selectable>
+<div class="mat-list md-contacts" data-selectable>
     <partial name="_Toolbar" model="Model.Toolbar" />
 
     @if (Model.Items.Count == 0)

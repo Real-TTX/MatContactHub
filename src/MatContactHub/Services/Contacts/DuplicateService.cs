@@ -96,7 +96,7 @@ public static class DuplicateService
             {
                 if (PhoneNormalizer.Normalize(field.Get(c), country) is { } number)
                 {
-                    Add("p:" + number, DuplicateReason.Phone, number, c.Id);
+                    Add("p:" + number, DuplicateReason.Phone, PhoneNormalizer.Format(number, NumberFormat.National, country) ?? number, c.Id);
                 }
             }
 
