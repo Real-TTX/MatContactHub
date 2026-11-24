@@ -70,18 +70,7 @@
                 <div class="mat-card__head"><h2 class="mat-card__title" id="ldap-upload">@Ui.Icon("upload")@L["Ldap.Certificate.Upload"]</h2></div>
                 <div class="mat-card__body mat-form">
                     <p class="md-muted">@L["Ldap.Certificate.Upload.Text"]</p>
-                    @{
-                        ViewData.ModelState.TryGetValue("Pfx", out var pfxState);
-                        var pfxError = pfxState?.Errors.FirstOrDefault()?.ErrorMessage;
-                    }
-                    <div class="mat-field @(pfxError is null ? "" : "is-invalid")">
-                        <label class="mat-label" for="Pfx">@L["Ldap.Certificate.File"] <span class="mat-req" aria-hidden="true">*</span></label>
-                        <div class="mat-upload" data-upload data-max-size="@(LdapCertificateService.MaxUploadBytes / 1024)KB">
-                            <input class="mat-upload__input" type="file" id="Pfx" name="Pfx" accept=".pfx,.p12,application/x-pkcs12" required
-                                   data-msg-required="@L["Ldap.Certificate.Upload.Missing"]" aria-describedby="Pfx-error" aria-invalid="@(pfxError is null ? "false" : "true")" />
-                        </div>
-                        <span class="mat-error" id="Pfx-error" aria-live="polite">@pfxError</span>
-                    </div>
+                    <md-field name="Pfx" kind="file" label="@L["Ldap.Certificate.File"]" required accept=".pfx,.p12,application/x-pkcs12" max-size="@(LdapCertificateService.MaxUploadBytes / 1024)KB" msg-required="@L["Ldap.Certificate.Upload.Missing"]" />
                     <md-field name="PfxPassword" kind="password" label="@L["Ldap.Certificate.Password"]" optional autocomplete="off" hint="@L["Ldap.Certificate.Password.Hint"]" />
                 </div>
             </section>

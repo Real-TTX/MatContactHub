@@ -5,8 +5,6 @@
     ViewData["Crumbs"] = new List<(string, string?)> { (L["Contacts.Title"].Value, "/Contacts"), (L["Contacts.Import"].Value, null) };
     ViewData["NavKey"] = "contacts";
     var p = Model.Preview;
-    ModelState.TryGetValue(nameof(Model.Upload), out var fileState);
-    var fileError = fileState?.Errors.FirstOrDefault()?.ErrorMessage;
 }
 
 @if (p is null)
@@ -17,14 +15,7 @@
             <div class="mat-card__head"><h2 class="mat-card__title">@Ui.Icon("upload")@L["Contacts.Import.File"]</h2></div>
             <div class="mat-card__body mat-form">
                 <p class="md-muted">@L["Contacts.Import.Intro"]</p>
-                <div class="mat-field @(fileError is null ? "" : "is-invalid")">
-                    <label class="mat-label" for="Upload">@L["Contacts.Import.File"] <span class="mat-req" aria-hidden="true">*</span></label>
-                    <div class="mat-upload" data-upload data-max-size="10MB">
-                        <input class="mat-upload__input" type="file" id="Upload" name="Upload" accept=".vcf,.vcard,.csv,.txt,text/vcard,text/csv" required data-msg-required="@L["Contacts.Import.NoFile"]" aria-describedby="Upload-hint Upload-error" />
-                    </div>
-                    <span class="mat-hint" id="Upload-hint">@L["Contacts.Import.File.Hint"]</span>
-                    <span class="mat-error" id="Upload-error" aria-live="polite">@fileError</span>
-                </div>
+                <md-field name="Upload" kind="file" label="@L["Contacts.Import.File"]" required accept=".vcf,.vcard,.csv,.txt,text/vcard,text/csv" max-size="10MB" hint="@L["Contacts.Import.File.Hint"]" msg-required="@L["Contacts.Import.NoFile"]" />
                 <md-field name="AddressBookId" kind="select" label="@L["Contacts.Col.AddressBook"]" value="@Model.AddressBookId" options="Model.AddressBooks" hint="@L["Contacts.Import.Book.Hint"]" />
                 <md-field name="SkipDuplicates" kind="switch" label="@L["Contacts.Import.SkipDuplicates"]" value="@Model.SkipDuplicates.ToString()" hint="@L["Contacts.Import.SkipDuplicates.Hint"]" />
             </div>
