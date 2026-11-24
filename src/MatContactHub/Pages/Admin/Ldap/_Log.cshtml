@@ -1,0 +1,72 @@
+@model MatContactHub.Pages.Admin.Ldap.IndexModel
+@* The tab Log: the last 500 binds and searches (newest first), with search and a filter by outcome; below it Refresh and, after a gap, Clear. *@
+
+<div class="mat-list">
+    <partial name="_Toolbar" model="Model.Toolbar" />
+
+    @if (Model.LogEntries.Count == 0)
+    {
+        var first = Model.Toolbar.Total == 0;
+        <partial name="_Empty" model="@(new EmptyStateModel("list", L[first ? "Ldap.Log.Empty" : "Ldap.Log.NoMatch"].Value, L[first ? "Ldap.Log.Empty.Text" : "Lists.ChangeTools"].Value, first, null, null, first ? null : Model.Toolbar.UrlReset()))" />
+    }
+    else
+    {
+        <md-table caption="@L["Ldap.Log"]">
+            <thead>
+                <tr>
+                    <th scope="col">@L["Ldap.Log.Col.Time"]</th>
+                    <th scope="col">@L["Ldap.Log.Col.Client"]</th>
+                    <th scope="col">@L["Ldap.Log.Col.Account"]</th>
+                    <th scope="col">@L["Ldap.Log.Col.Query"]</th>
+                    <th scope="col" class="mat-num">@L["Ldap.Log.Col.Results"]</th>
+                    <th scope="col">@L["Ldap.Log.Col.Result"]</th>
+                    <th scope="col" class="mat-num mat-hide-sm">@L["Ldap.Log.Col.Duration"]</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var e in Model.LogEntries)
+                {
+                    <tr>
+                        <td data-label="@L["Ldap.Log.Col.Time"]" class="mat-mono">@Dates.Stamp(e.Time, Model.Zone)</td>
+                        <td data-label="@L["Ldap.Log.Col.Client"]"><span class="mat-mono">@e.Client</span>@if (e.Secure) { <span class="md-ldap-lock" title="@L["Ldap.Log.Encrypted"]">@Ui.Icon("lock")<span class="mat-sr-only">@L["Ldap.Log.Encrypted"]</span></span> }</td>
+                        <td data-label="@L["Ldap.Log.Col.Account"]" class="mat-mono">@(e.BindName ?? "–")</td>
+                        <td data-label="@L["Ldap.Log.Col.Query"]">
+                            @if (e.Operation == "bind")
+                            {
+                                <span class="mat-pill mat-pill--plain">@L["Ldap.Log.Bind"]</span>
+                            }
+                            else
+                            {
+                                <span class="md-ldap-query"><code>@e.Filter</code><small class="mat-mono md-muted">@e.Scope · @(string.IsNullOrEmpty(e.BaseDn) ? "\"\"" : e.BaseDn)</small></span>
+                            }
+                        </td>
+                        <td data-label="@L["Ldap.Log.Col.Results"]" class="mat-num">@(e.Operation == "bind" ? "–" : e.Results.ToString("N0"))</td>
+                        <td data-label="@L["Ldap.Log.Col.Result"]">
+                            @if (e.Code == LdapResultCode.Success)
+                            {
+                                <span class="mat-pill mat-pill--ok">@L["Ldap.Log.Ok"]</span>
+                            }
+                            else
+                            {
+                                <span class="mat-pill @(e.Code is LdapResultCode.SizeLimitExceeded or LdapResultCode.TimeLimitExceeded ? "mat-pill--warn" : "mat-pill--error") mat-mono">@((int)e.Code) @e.Code</span>
+                            }
+                        </td>
+                        <td data-label="@L["Ldap.Log.Col.Duration"]" class="mat-num mat-mono mat-hide-sm">@e.Milliseconds.ToString("0.0") ms</td>
+                    </tr>
+                }
+            </tbody>
+        </md-table>
+    }
+
+    <partial name="_Pager" model="Model.Pager" />
+
+    <div class="mat-actions">
+        <a class="mat-btn mat-btn--secondary" href="@Model.Toolbar.UrlWithPage(Model.Pager.Page)">@Ui.Icon("refresh")<span>@L["Ldap.Log.Refresh"]</span></a>
+        @if (Model.Toolbar.Total > 0)
+        {
+            <span class="mat-btn-row__spacer"></span>
+            <button type="submit" form="ldap-clear-log" class="mat-btn mat-btn--danger" data-confirm="@L["Ldap.Log.Clear.Confirm"]" data-confirm-ok="@L["Ldap.Log.Clear"]">@Ui.Icon("trash")<span>@L["Ldap.Log.Clear"]</span></button>
+        }
+    </div>
+</div>
+<form id="ldap-clear-log" method="post" asp-page-handler="ClearLog" hidden></form>

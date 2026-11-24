@@ -1,0 +1,91 @@
+@model MatContactHub.Pages.Admin.Ldap.IndexModel
+@* The tab Certificate: the certificate of LDAPS and StartTLS in force (download, a new self-signed one, back to the self-signed one) and the upload of a PFX. *@
+@{
+    var c = Model.Certificate!;
+    var soon = !c.Expired && c.NotAfterUtc < DateTime.UtcNow.AddDays(30);
+}
+
+<div class="mat-cols">
+    <div class="mat-col-12 mat-col-lg-7">
+        <div class="mat-stack">
+            <section class="mat-card" aria-labelledby="ldap-cert">
+                <div class="mat-card__head">
+                    <h2 class="mat-card__title" id="ldap-cert">@Ui.Icon("shield")@L["Ldap.Certificate"]</h2>
+                    @if (c.Expired)
+                    {
+                        <span class="mat-pill mat-pill--error">@L["Ldap.Certificate.Expired"]</span>
+                    }
+                    else if (soon)
+                    {
+                        <span class="mat-pill mat-pill--warn">@L["Ldap.Certificate.ExpiresSoon"]</span>
+                    }
+                </div>
+                <div class="mat-card__body mat-stack">
+                    @if (c.Problem is not null)
+                    {
+                        <div class="mat-alert mat-alert--warning" role="status">@Ui.Icon("alert")<div class="mat-alert__body">@c.Problem</div></div>
+                    }
+                    <dl class="mat-kv">
+                        <dt>@L["Ldap.Certificate.Source"]</dt>
+                        <dd>@L[c.Source == LdapCertificateSource.Uploaded && c.Problem is null ? "Ldap.Certificate.Source.Uploaded" : "Ldap.Certificate.Source.SelfSigned"]</dd>
+                        <dt>@L["Ldap.Certificate.Subject"]</dt>
+                        <dd class="mat-mono">@c.Subject</dd>
+                        <dt>@L["Ldap.Certificate.Issuer"]</dt>
+                        <dd class="mat-mono">@c.Issuer</dd>
+                        <dt>@L["Ldap.Certificate.Names"]</dt>
+                        <dd class="mat-mono">@string.Join(", ", c.Names)</dd>
+                        <dt>@L["Ldap.Certificate.ValidFrom"]</dt>
+                        <dd>@Dates.Stamp(c.NotBeforeUtc, Model.Zone)</dd>
+                        <dt>@L["Ldap.Certificate.ValidUntil"]</dt>
+                        <dd>@Dates.Stamp(c.NotAfterUtc, Model.Zone)</dd>
+                        <dt>@L["Ldap.Certificate.Key"]</dt>
+                        <dd>@c.Key</dd>
+                        <dt>@L["Ldap.Certificate.Thumbprint"]</dt>
+                        <dd class="mat-mono">@c.Thumbprint</dd>
+                        <dt>@L["Ldap.Certificate.Sha256"]</dt>
+                        <dd class="mat-mono">@c.Sha256</dd>
+                    </dl>
+                    <p class="md-muted">@L["Ldap.Certificate.Trust"]</p>
+                </div>
+            </section>
+            <div class="mat-actions">
+                <a class="mat-btn mat-btn--secondary" href="/Admin/Ldap?handler=Download" download>@Ui.Icon("download")<span>@L["Ldap.Certificate.Download"]</span></a>
+                @if (c.Source == LdapCertificateSource.Uploaded)
+                {
+                    <button type="submit" form="ldap-self-signed" class="mat-btn mat-btn--secondary" data-confirm="@L["Ldap.Certificate.UseSelfSigned.Confirm"]" data-confirm-ok="@L["Ldap.Certificate.UseSelfSigned"]">@Ui.Icon("restore")<span>@L["Ldap.Certificate.UseSelfSigned"]</span></button>
+                }
+                else
+                {
+                    <button type="submit" form="ldap-regenerate" class="mat-btn mat-btn--secondary" data-confirm="@L["Ldap.Certificate.Regenerate.Confirm"]" data-confirm-ok="@L["Ldap.Certificate.Regenerate"]">@Ui.Icon("refresh")<span>@L["Ldap.Certificate.Regenerate"]</span></button>
+                }
+            </div>
+            <form id="ldap-self-signed" method="post" asp-page-handler="SelfSigned" hidden></form>
+            <form id="ldap-regenerate" method="post" asp-page-handler="Regenerate" hidden></form>
+        </div>
+    </div>
+    <div class="mat-col-12 mat-col-lg-5">
+        <form class="mat-form" method="post" asp-page-handler="Upload" enctype="multipart/form-data" novalidate>
+            <partial name="_FormSummary" model="ViewData.ModelState" />
+            <section class="mat-card" aria-labelledby="ldap-upload">
+                <div class="mat-card__head"><h2 class="mat-card__title" id="ldap-upload">@Ui.Icon("upload")@L["Ldap.Certificate.Upload"]</h2></div>
+                <div class="mat-card__body mat-form">
+                    <p class="md-muted">@L["Ldap.Certificate.Upload.Text"]</p>
+                    @{
+                        ViewData.ModelState.TryGetValue("Pfx", out var pfxState);
+                        var pfxError = pfxState?.Errors.FirstOrDefault()?.ErrorMessage;
+                    }
+                    <div class="mat-field @(pfxError is null ? "" : "is-invalid")">
+                        <label class="mat-label" for="Pfx">@L["Ldap.Certificate.File"] <span class="mat-req" aria-hidden="true">*</span></label>
+                        <div class="mat-upload" data-upload data-max-size="@(LdapCertificateService.MaxUploadBytes / 1024)KB">
+                            <input class="mat-upload__input" type="file" id="Pfx" name="Pfx" accept=".pfx,.p12,application/x-pkcs12" required
+                                   data-msg-required="@L["Ldap.Certificate.Upload.Missing"]" aria-describedby="Pfx-error" aria-invalid="@(pfxError is null ? "false" : "true")" />
+                        </div>
+                        <span class="mat-error" id="Pfx-error" aria-live="polite">@pfxError</span>
+                    </div>
+                    <md-field name="PfxPassword" kind="password" label="@L["Ldap.Certificate.Password"]" optional autocomplete="off" hint="@L["Ldap.Certificate.Password.Hint"]" />
+                </div>
+            </section>
+            <md-buttons save="@L["Ldap.Certificate.Upload.Button"]" save-icon="upload" />
+        </form>
+    </div>
+</div>

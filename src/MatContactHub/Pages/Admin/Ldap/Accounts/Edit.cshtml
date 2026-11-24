@@ -1,0 +1,63 @@
+@page "/Admin/Ldap/Accounts/Edit"
+@model MatContactHub.Pages.Admin.Ldap.Accounts.EditModel
+@{
+    var title = Model.IsNew ? L["Ldap.Account.New"].Value : Model.SavedName;
+    ViewData["Title"] = title;
+    ViewData["Crumbs"] = new List<(string, string?)>
+    {
+        (L["Admin.Title"].Value, null), (L["Ldap.Title"].Value, "/Admin/Ldap"), (L["Ldap.Tab.accounts"].Value, "/Admin/Ldap?tab=accounts"),
+        (Model.IsNew ? L["Common.New"].Value : Model.SavedName, null),
+    };
+    var bindDn = $"cn={Model.SavedName},{Model.BaseDn}";
+}
+
+<form class="mat-form" method="post" novalidate>
+    <partial name="_FormSummary" model="ViewData.ModelState" />
+    <div class="mat-cols">
+        <div class="mat-col-12 mat-col-lg-7">
+            <div class="mat-stack">
+                <section class="mat-card" aria-labelledby="account-general">
+                    <div class="mat-card__head"><h2 class="mat-card__title" id="account-general">@Ui.Icon("key")@L["Ldap.Account.General"]</h2></div>
+                    <div class="mat-card__body mat-form">
+                        <md-field name="Name" label="@L["Ldap.Account.Name"]" required value="@Model.Name" maxlength="64" mono autocomplete="off" autofocus="@Model.IsNew"
+                                  hint="@L["Ldap.Account.Name.Hint"]" />
+                        <md-field name="Description" kind="textarea" label="@L["Ldap.Account.Description"]" value="@Model.Description" maxlength="1000" optional rows="2" />
+                        <md-field name="Enabled" kind="switch" label="@L["Ldap.Account.CanBind"]" value="@Model.Enabled.ToString()" />
+                        <md-field name="Password" kind="password" label="@L[Model.IsNew ? "Ldap.Account.Password" : "Ldap.Account.Password.New"]" required="@Model.IsNew"
+                                  optional="@(!Model.IsNew)" autocomplete="new-password" minlength="@PasswordService.MinLength" maxlength="200"
+                                  hint="@(Model.IsNew ? L["Ldap.Account.Password.Hint.New", PasswordService.MinLength].Value : L["Ldap.Account.Password.Hint.Keep"].Value)" />
+                    </div>
+                </section>
+                <section class="mat-card" aria-labelledby="account-books">
+                    <div class="mat-card__head"><h2 class="mat-card__title" id="account-books">@Ui.Icon("book")@L["Ldap.Account.Access"]</h2></div>
+                    <div class="mat-card__body mat-form">
+                        <md-field name="AllAddressBooks" kind="switch" label="@L["Ldap.Account.AllAddressBooks"]" value="@Model.AllAddressBooks.ToString()" hint="@L["Ldap.Account.AddressBooks.Hint"]" />
+                        <md-field name="AddressBookIds" kind="picker" label="@L["Ldap.Account.AddressBooks"]" value="@Model.AddressBookIds" options="Model.Books"
+                                  picker="multiple search sep=," placeholder="@L["Ldap.Account.AddressBooks.Choose"]" show-if="#AllAddressBooks" show-value="false" />
+                    </div>
+                </section>
+            </div>
+        </div>
+        @if (!Model.IsNew)
+        {
+            <div class="mat-col-12 mat-col-lg-5">
+                <section class="mat-card" aria-labelledby="account-use">
+                    <div class="mat-card__head"><h2 class="mat-card__title" id="account-use">@Ui.Icon("plug")@L["Ldap.Account.Use"]</h2></div>
+                    <div class="mat-card__body mat-stack">
+                        <h3 class="mat-card__sub">@L["Ldap.Account.BindDn"]</h3>
+                        <pre class="mat-code md-ldap-code" data-copy="@bindDn"><code>@bindDn</code></pre>
+                        <dl class="mat-kv">
+                            <dt>@L["Ldap.Account.Col.LastBind"]</dt>
+                            <dd>@(Model.LastBindDate is { } last ? Dates.Stamp(last, Model.Zone) : L["Common.Never"].Value)</dd>
+                            <dt>@L["Ldap.Account.CreatedOn"]</dt>
+                            <dd>@Dates.Stamp(Model.CreateDate, Model.Zone)</dd>
+                        </dl>
+                        <p class="md-muted">@L["Ldap.Help.BindDn.Text"]</p>
+                    </div>
+                </section>
+            </div>
+        }
+    </div>
+    <md-buttons save="@L[Model.IsNew ? "Ldap.Account.Create" : "Common.Save"]" back="/Admin/Ldap?tab=accounts" delete-handler="@(Model.IsNew ? null : "Delete")"
+                delete-label="@L["Ldap.Account.Delete"]" delete-confirm="@L["Ldap.Account.DeleteConfirm", Model.SavedName]" />
+</form>

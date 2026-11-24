@@ -175,11 +175,14 @@ public static partial class LdapAccountService
             account.PasswordHash = passwords.Hash(newPassword);
         }
 
-        // the chosen address books stay even with "all" (switching back keeps the choice)
-        account.AddressBooks.RemoveAll(x => !books.Contains(x.AddressBookId));
-        foreach (var book in books.Where(b => account.AddressBooks.All(x => x.AddressBookId != b)))
+        // with "all" and no choice sent (the page hides the field) the chosen address books stay, so switching back keeps them
+        if (!form.AllAddressBooks || books.Count > 0)
         {
-            account.AddressBooks.Add(new LdapAccountAddressBook { AddressBookId = book });
+            account.AddressBooks.RemoveAll(x => !books.Contains(x.AddressBookId));
+            foreach (var book in books.Where(b => account.AddressBooks.All(x => x.AddressBookId != b)))
+            {
+                account.AddressBooks.Add(new LdapAccountAddressBook { AddressBookId = book });
+            }
         }
 
         await db.SaveChangesAsync(ct);
