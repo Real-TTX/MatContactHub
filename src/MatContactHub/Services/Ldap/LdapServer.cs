@@ -162,7 +162,7 @@ public sealed class LdapServer(ILdapServerContext context) : IAsyncDisposable
             if (_sessions.Count >= _ctx.Options.MaxConnections || count > _ctx.Options.MaxConnectionsPerAddress)
             {
                 _ctx.Logger.LogWarning("LDAP: {Client} is refused, too many connections.", client);
-                await RefuseAsync(socket);
+                await RefuseAsync(socket, secure);
                 return;
             }
 
@@ -190,10 +190,16 @@ public sealed class LdapServer(ILdapServerContext context) : IAsyncDisposable
     }
 
     /// <summary>A notice of disconnection (busy) on a plain connection; an LDAPS one is just closed (the notice would need the handshake).</summary>
-    private static async Task RefuseAsync(Socket socket)
+    private static async Task RefuseAsync(Socket socket, bool secure)
     {
         try
         {
+            if (secure)
+            {
+                socket.Shutdown(SocketShutdown.Both);
+                return;
+            }
+
             var notice = LdapCodec.Encode(new LdapMessage(0, new ExtendedResponse(new LdapResult(LdapResultCode.Busy, string.Empty, "Too many connections."),
                 LdapOids.NoticeOfDisconnection)));
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));

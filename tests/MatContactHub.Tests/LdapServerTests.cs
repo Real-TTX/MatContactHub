@@ -377,6 +377,89 @@ public sealed class LdapServerTests : IAsyncLifetime
         }
     }
 
+    /// <summary>A server of its own with other limits; the test talks to its plain port.</summary>
+    private static async Task WithServerAsync(LdapServerOptions options, Func<int, Task> test)
+    {
+        var server = new LdapServer(new TestLdapContext(LdapTestData.Directory(), options));
+        server.Apply(true, false);
+        try
+        {
+            await test(server.PlainPort!.Value);
+        }
+        finally
+        {
+            await server.StopAsync();
+        }
+    }
+
+    private static LdapServerOptions Limits(Func<LdapServerOptions, LdapServerOptions> change)
+        => change(new LdapServerOptions { Port = 0, SecurePort = 0, Address = System.Net.IPAddress.Loopback, BindFailureDelay = TimeSpan.Zero });
+
+    private static async Task<ExtendedResponse> NoticeAsync(Stream stream)
+    {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var message = LdapCodec.Decode((await LdapPduReader.ReadAsync(stream, 1 << 20, timeout.Token))!);
+        Assert.Equal(0, message.MessageId);
+        var notice = Assert.IsType<ExtendedResponse>(message.Op);
+        Assert.Equal(LdapOids.NoticeOfDisconnection, notice.Name);
+        Assert.Null(await LdapPduReader.ReadAsync(stream, 1 << 20, timeout.Token));
+        return notice;
+    }
+
+    [Fact]
+    public async Task An_idle_connection_is_closed_with_a_notice()
+        => await WithServerAsync(Limits(o => o with { IdleTimeout = TimeSpan.FromMilliseconds(300) }), async port =>
+        {
+            using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            await socket.ConnectAsync("127.0.0.1", port);
+            using var stream = new NetworkStream(socket);
+            Assert.Equal(LdapResultCode.Unavailable, (await NoticeAsync(stream)).Result.Code);
+        });
+
+    [Fact]
+    public async Task A_message_larger_than_the_limit_is_refused()
+        => await WithServerAsync(Limits(o => o with { MaxPduBytes = 1024 }), async port =>
+        {
+            using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            await socket.ConnectAsync("127.0.0.1", port);
+            using var stream = new NetworkStream(socket);
+            var big = new BindRequest(3, new string('x', 2000), Encoding.UTF8.GetBytes("pw"));
+            await stream.WriteAsync(LdapCodec.Encode(new LdapMessage(1, big)));
+            Assert.Equal(LdapResultCode.ProtocolError, (await NoticeAsync(stream)).Result.Code);
+        });
+
+    [Fact]
+    public async Task A_message_that_never_ends_runs_into_the_read_timeout()
+        => await WithServerAsync(Limits(o => o with { ReadTimeout = TimeSpan.FromMilliseconds(300) }), async port =>
+        {
+            using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            await socket.ConnectAsync("127.0.0.1", port);
+            using var stream = new NetworkStream(socket);
+            await stream.WriteAsync(new byte[] { 0x30, 0x20, 0x02, 0x01 });
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            Assert.Null(await LdapPduReader.ReadAsync(stream, 1 << 20, timeout.Token));
+        });
+
+    [Fact]
+    public async Task Connections_over_the_limit_of_an_address_are_refused_busy()
+        => await WithServerAsync(Limits(o => o with { MaxConnectionsPerAddress = 2 }), async port =>
+        {
+            using var first = new LdapClient();
+            await first.ConnectAsync("127.0.0.1", port);
+            using var second = new LdapClient();
+            await second.ConnectAsync("127.0.0.1", port);
+            await second.BindAsync("starface", LdapTestData.StarfacePassword);
+
+            using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            await socket.ConnectAsync("127.0.0.1", port);
+            using var stream = new NetworkStream(socket);
+            Assert.Equal(LdapResultCode.Busy, (await NoticeAsync(stream)).Result.Code);
+
+            // the two connections still work
+            var results = await second.SearchAsync(LdapTestData.Base, LdapClient.ScopeSub, "(cn=Ann*)", null, false);
+            Assert.Single(await AllAsync(results));
+        });
+
     [Fact]
     public async Task The_query_log_has_the_searches()
     {

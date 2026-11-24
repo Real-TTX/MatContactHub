@@ -59,6 +59,7 @@ public sealed class LdapSession
     private LdapIdentity _identity = LdapIdentity.Anonymous;
     private long _lastActivity = Environment.TickCount64;
     private long _requests;
+    private bool _noticeSent;
 
     public LdapSession(ILdapServerContext ctx, Socket socket, string client, bool ldaps, CancellationToken stop)
     {
@@ -163,8 +164,41 @@ public sealed class LdapSession
                 Cancel(op);
             }
 
+            if (_noticeSent)
+            {
+                await DrainAsync();
+            }
+
             Close();
             _paged.Clear();
+        }
+    }
+
+    /// <summary>
+    /// After a notice of disconnection: the sending side is closed and what the client still sends is read away for a moment, so the socket ends with a FIN
+    /// (closing it with unread bytes sends a reset, which can throw the notice away before the client reads it).
+    /// </summary>
+    private async Task DrainAsync()
+    {
+        try
+        {
+            _socket.Shutdown(SocketShutdown.Send);
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            var buffer = new byte[8192];
+            var total = 0;
+            while (total < _ctx.Options.MaxPduBytes + 65536 && !_closing.IsCancellationRequested)
+            {
+                var read = await _socket.ReceiveAsync(buffer, SocketFlags.None, timeout.Token);
+                if (read == 0)
+                {
+                    break;
+                }
+
+                total += read;
+            }
+        }
+        catch (Exception ex) when (ex is SocketException or ObjectDisposedException or OperationCanceledException)
+        {
         }
     }
 
@@ -638,7 +672,10 @@ public sealed class LdapSession
 
     /// <summary>The unsolicited notice of disconnection (RFC 4511 4.4.1), best effort: the connection ends after it.</summary>
     private Task NoticeAsync(LdapResultCode code, string message)
-        => TrySendAsync(new LdapMessage(0, new ExtendedResponse(new LdapResult(code, string.Empty, message), LdapOids.NoticeOfDisconnection)));
+    {
+        _noticeSent = true;
+        return TrySendAsync(new LdapMessage(0, new ExtendedResponse(new LdapResult(code, string.Empty, message), LdapOids.NoticeOfDisconnection)));
+    }
 
     private static string Cut(string text, int max) => text.Length <= max ? text : text[..max];
 }
