@@ -271,11 +271,15 @@ public sealed class FieldTagHelper : TagHelper
         }
     }
 
-    /// <summary>Up to five exclusive choices (FORM-12): a fieldset with a legend and a radio per choice, as the toolkit draws them.</summary>
+    /// <summary>
+    /// Up to five exclusive choices (FORM-12): a fieldset with a legend and a radio per choice, as the toolkit draws them. An <c>inline</c> group (a cell of a
+    /// table) keeps its legend for the screen reader only.
+    /// </summary>
     private string Radios(string id, string value, string? error)
     {
         var sb = new StringBuilder();
-        sb.Append($"<fieldset class=\"mat-field mat-fieldset{(error is null ? string.Empty : " is-invalid")}\" id=\"{id}\"");
+        var cls = "mat-field mat-fieldset" + (Inline ? " md-field--inline" : string.Empty) + (CssClass is null ? string.Empty : " " + E(CssClass)) + (error is null ? string.Empty : " is-invalid");
+        sb.Append($"<fieldset class=\"{cls}\" id=\"{id}\"");
         if (ShowIf is not null)
         {
             sb.Append($" data-show-if=\"{E(ShowIf)}\"");
@@ -285,7 +289,7 @@ public sealed class FieldTagHelper : TagHelper
             }
         }
 
-        sb.Append($"><legend class=\"mat-legend\">{E(Label)}</legend><div class=\"mat-checks mat-checks--inline\">");
+        sb.Append($"><legend class=\"{(Inline ? "mat-legend mat-sr-only" : "mat-legend")}\">{E(Label)}</legend><div class=\"mat-checks mat-checks--inline\">");
         var i = 0;
         foreach (var o in Options ?? [])
         {

@@ -72,8 +72,8 @@ public sealed class EditModel(AppDbContext db) : AppPageModel
 
     public IReadOnlyList<Choice> RoleChoices { get; } =
     [
-        new(nameof(AddressBookRole.Viewer), Text.T("AddressBooks.Role.Viewer"), Text.T("AddressBooks.Role.Viewer.Hint")),
-        new(nameof(AddressBookRole.Editor), Text.T("AddressBooks.Role.Editor"), Text.T("AddressBooks.Role.Editor.Hint")),
+        new(nameof(AddressBookRole.Viewer), Text.T("AddressBooks.Role.Viewer")),
+        new(nameof(AddressBookRole.Editor), Text.T("AddressBooks.Role.Editor")),
     ];
 
     /// <summary>The people who can still be added (not in the list yet).</summary>

@@ -157,10 +157,14 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 .md-group .mat-card__title { min-width: 0; }
 .md-group > .mat-table-wrap { border: 0; border-radius: 0; box-shadow: none; }
 
-/* the tab Access of an address book: a person is added in one line (who, which role, Add) */
-.md-add-line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--mat-space-3) var(--mat-space-5); }
+/* the tab Access of an address book: a person is added in one line (who, which role, Add). The fields start at the same height, the legend sits where a
+   label sits, the radios are as high as the picker beside them and the button is level with both. */
+.md-add-line { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--mat-space-3) var(--mat-space-5); }
 .md-add-line > .mat-field:first-child { flex: 1 1 18rem; }
 .md-add-line > .mat-fieldset { flex: none; }
+.md-add-line > .mat-fieldset > .mat-legend { margin-bottom: var(--mat-space-1); line-height: var(--mat-lh); }
+.md-add-line > .mat-fieldset > .mat-checks { min-height: var(--mat-control-h); align-items: center; }
+.md-add-line > .mat-btn { margin-top: calc(var(--mat-fs-sm) * var(--mat-lh) + var(--mat-space-1)); }
 .md-role .mat-checks { flex-wrap: nowrap; }
 
 /* the DN of an address book as the LDAP server serves it */

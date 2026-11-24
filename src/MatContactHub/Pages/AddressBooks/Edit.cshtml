@@ -73,15 +73,9 @@
                                         <div class="mat-table__name"><span class="mat-avatar mat-avatar--sm" aria-hidden="true">@Ui.Initials(name)</span><span>@name@if (person is not null) { <small>@person.Email</small> }</span></div>
                                     </td>
                                     <td data-label="@L["AddressBooks.Access.Role"]">
-                                        <fieldset class="mat-fieldset md-role">
-                                            <legend class="mat-sr-only">@L["AddressBooks.Access.RoleOf", name]</legend>
-                                            <div class="mat-checks mat-checks--inline">
-                                                <label class="mat-check"><input type="radio" id="Access_@(i)_Viewer" name="Access[@i].Role" value="Viewer" checked="@(a.Role != AddressBookRole.Editor)" /><span class="mat-check__text">@L["AddressBooks.Role.Viewer"]</span></label>
-                                                <label class="mat-check"><input type="radio" id="Access_@(i)_Editor" name="Access[@i].Role" value="Editor" checked="@(a.Role == AddressBookRole.Editor)" /><span class="mat-check__text">@L["AddressBooks.Role.Editor"]</span></label>
-                                            </div>
-                                        </fieldset>
+                                        <md-field name="Access[@i].Role" id="Access_@(i)_Role" kind="radios" inline css="md-role" label="@L["AddressBooks.Access.RoleOf", name]" value="@a.Role.ToString()" options="Model.RoleChoices" />
                                     </td>
-                                    <td class="mat-table__cell-actions">
+                                    <td class="mat-table__cell-actions" data-label="@L["Common.Actions"]">
                                         <div class="mat-table__actions">
                                             <button type="submit" class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" formaction="@removeUrl&amp;userId=@a.UserId" formnovalidate aria-label="@L["AddressBooks.Access.Remove", name]" data-tip="@L["AddressBooks.Access.RemoveShort"]">@Ui.Icon("x")</button>
                                         </div>
@@ -97,13 +91,7 @@
                     @* add a person in one line: who, which role, Add (saves the form and stays on this tab) *@
                     <div class="md-add-line">
                         <md-field name="NewUserId" kind="select" label="@L["AddressBooks.Access.Add.Person"]" options="Model.Candidates" placeholder="@L["AddressBooks.Access.Add.Choose"]" picker="search" />
-                        <fieldset class="mat-field mat-fieldset">
-                            <legend class="mat-label">@L["AddressBooks.Access.Role"]</legend>
-                            <div class="mat-checks mat-checks--inline">
-                                <label class="mat-check"><input type="radio" id="NewRole_Viewer" name="NewRole" value="Viewer" checked /><span class="mat-check__text">@L["AddressBooks.Role.Viewer"]</span></label>
-                                <label class="mat-check"><input type="radio" id="NewRole_Editor" name="NewRole" value="Editor" /><span class="mat-check__text">@L["AddressBooks.Role.Editor"]</span></label>
-                            </div>
-                        </fieldset>
+                        <md-field name="NewRole" kind="radios" label="@L["AddressBooks.Access.Role"]" value="@AddressBookRole.Viewer" options="Model.RoleChoices" />
                         <button type="submit" class="mat-btn mat-btn--secondary" formaction="@addUrl">@Ui.Icon("plus")<span>@L["AddressBooks.Access.Add"]</span></button>
                     </div>
                 }
