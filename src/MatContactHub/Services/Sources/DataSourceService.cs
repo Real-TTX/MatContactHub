@@ -669,15 +669,21 @@ public static class DataSourceService
             return Outcome<bool>.Denied();
         }
 
-        // deleted softly by hand: a Remove would let the change tracker cut the contacts it tracks loose from the source (their DataSourceId set to null)
-        source.UpdateState = SoftEntity.Deleted;
-        source.NextRunDate = null;
-        await db.SaveChangesAsync(ct);
-        var now = DateTime.UtcNow;
-        await db.Contacts.Where(c => c.DataSourceId == id)
-            .ExecuteUpdateAsync(s => s.SetProperty(c => c.UpdateState, SoftEntity.Deleted).SetProperty(c => c.UpdateDate, now), ct);
+        // the contacts in one statement (a source may hold thousands), the source with them: both or neither. Deleted softly by hand: a Remove would let the
+        // change tracker cut the contacts it tracks loose from the source (their DataSourceId set to null)
+        await using (var tx = await db.Database.BeginTransactionAsync(ct))
+        {
+            await db.Contacts.Where(c => c.DataSourceId == id).ExecuteUpdateAsync(s => s
+                .SetProperty(c => c.UpdateState, SoftEntity.Deleted)
+                .SetProperty(c => c.UpdateDate, DateTime.UtcNow)
+                .SetProperty(c => c.UpdateUserId, actor.UserId), ct);
+            source.UpdateState = SoftEntity.Deleted;
+            source.NextRunDate = null;
+            await db.SaveChangesAsync(ct);
+            await tx.CommitAsync(ct);
+        }
 
-        // a bulk change past the change tracker
+        // a bulk change past the change tracker and a save inside a transaction
         DirectoryChanges.Bump();
         var path = env.CsvPath(source.Token);
         if (File.Exists(path))

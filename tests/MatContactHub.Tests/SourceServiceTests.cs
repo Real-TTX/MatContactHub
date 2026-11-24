@@ -2,6 +2,7 @@ using System.Text;
 using MatContactHub.Data;
 using MatContactHub.Localization;
 using MatContactHub.Services;
+using MatContactHub.Services.Contacts;
 using MatContactHub.Services.Sources;
 using Microsoft.EntityFrameworkCore;
 
@@ -293,6 +294,32 @@ public sealed class SourceServiceTests
             Assert.Contains("404", error.Error, StringComparison.Ordinal);
             Assert.Empty(error.Rows);
         }
+    }
+
+    [DbFact]
+    public async Task Deleting_a_source_deletes_its_contacts_in_the_name_of_the_administrator()
+    {
+        var (t, kit, book) = await CreateAsync();
+        await using var _ = t;
+        using var __ = kit;
+        var admin = await t.AddUserAsync("Ada");
+        var actor = Actor.ForPerson(admin.Id, true, admin.Email);
+        var id = (await DataSourceService.SaveAsync(t.Db, actor, null, new DataSourceForm("CRM", DataSourceKind.Rest, book, true, 60, true))).Value;
+        t.Db.Contacts.AddRange(new Contact { AddressBookId = book, DataSourceId = id, ExternalKey = "1", DisplayName = "One" },
+            new Contact { AddressBookId = book, DataSourceId = id, ExternalKey = "2", DisplayName = "Two" },
+            new Contact { AddressBookId = book, DisplayName = "Manual" });
+        await t.Db.SaveChangesAsync();
+        t.Db.ChangeTracker.Clear();
+        var version = DirectoryChanges.Version;
+
+        Assert.True((await DataSourceService.DeleteAsync(t.Db, actor, kit.Env, id)).Ok);
+        t.Db.ChangeTracker.Clear();
+        Assert.True(DirectoryChanges.Version > version);
+        Assert.False(await t.Db.DataSources.AnyAsync(s => s.Id == id));
+        var synced = await t.Db.Contacts.IgnoreQueryFilters().Where(c => c.DataSourceId == id).ToListAsync();
+        Assert.Equal(2, synced.Count);
+        Assert.All(synced, c => Assert.Equal((SoftEntity.Deleted, (long?)admin.Id), (c.UpdateState, c.UpdateUserId)));
+        Assert.Equal("Manual", Assert.Single(await t.Db.Contacts.ToListAsync()).DisplayName);
     }
 
     [DbFact]
