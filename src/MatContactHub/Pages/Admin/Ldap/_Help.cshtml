@@ -1,0 +1,116 @@
+@model MatContactHub.Pages.Admin.Ldap.IndexModel
+@* The tab Connection help: the values of the connection, the filters and attributes for STARFACE, Yealink and any other LDAPv3 client. *@
+@{
+    var s = Model.Status;
+    var port = s.Port ?? s.ConfiguredPort;
+    var securePort = s.SecurePort ?? s.ConfiguredSecurePort;
+    var account = Model.HelpAccount;
+    var bindDn = $"cn={account},{Model.BaseDn}";
+    const string numberFilter = "(|(telephoneNumber=*%)(mobile=*%)(homePhone=*%)(otherTelephone=*%))";
+    const string nameFilter = "(|(cn=*%*)(sn=%*)(givenName=%*)(o=%*))";
+    var ldapsearch = $"ldapsearch -H ldap://{Model.ServerName}:{port} -ZZ -D \"{bindDn}\" -W -b \"{Model.BaseDn}\" \"(telephoneNumber=*1234567)\" cn telephoneNumber mobile";
+    var ldapsSearch = $"ldapsearch -H ldaps://{Model.ServerName}:{securePort} -D \"{bindDn}\" -W -b \"{Model.BaseDn}\" \"(cn=*ann*)\" cn mail";
+
+    void Code(string text)
+    {
+        <pre class="mat-code md-ldap-code" data-copy="@text"><code>@text</code></pre>
+    }
+}
+
+<div class="mat-cols">
+    <div class="mat-col-12 mat-col-lg-6">
+        <div class="mat-stack">
+            <section class="mat-card" aria-labelledby="help-connection">
+                <div class="mat-card__head"><h2 class="mat-card__title" id="help-connection">@Ui.Icon("plug")@L["Ldap.Help.Connection"]</h2></div>
+                <div class="mat-card__body mat-stack">
+                    <dl class="mat-kv">
+                        <dt>@L["Ldap.Help.Server"]</dt>
+                        <dd><span class="mat-mono">@Model.ServerName</span><small class="md-block-line md-muted">@L["Ldap.Help.Server.Text"]</small></dd>
+                        <dt>@L["Ldap.Help.Port"]</dt>
+                        <dd><span class="mat-mono">@port / @securePort</span><small class="md-block-line md-muted">@L["Ldap.Help.Ports.Text", port, securePort]</small></dd>
+                        <dt>@L["Ldap.BaseDn"]</dt>
+                        <dd class="mat-mono">@Model.BaseDn</dd>
+                        <dt>@L["Ldap.Help.BindDn"]</dt>
+                        <dd><span class="mat-mono">@bindDn</span><small class="md-block-line md-muted">@L["Ldap.Help.BindDn.Text"]</small></dd>
+                        <dt>@L["Ldap.Help.Scope"]</dt>
+                        <dd>@L["Ldap.Help.Scope.Text"]</dd>
+                        <dt>@L["Ldap.Help.Version"]</dt>
+                        <dd>LDAPv3</dd>
+                        <dt>@L["Ldap.Help.Tls"]</dt>
+                        <dd>@L["Ldap.Help.Tls.Text"]</dd>
+                    </dl>
+                    <p class="md-muted">@L["Ldap.Help.Numbers"]</p>
+                </div>
+            </section>
+            <section class="mat-card" aria-labelledby="help-starface">
+                <div class="mat-card__head"><h2 class="mat-card__title" id="help-starface">@Ui.Icon("server")@L["Ldap.Help.Starface"]</h2></div>
+                <div class="mat-card__body mat-stack">
+                    <p>@L["Ldap.Help.Starface.Text"]</p>
+                    <h3 class="mat-card__sub">@L["Ldap.Help.NumberFilter"]</h3>
+                    @{ Code(numberFilter); }
+                    <h3 class="mat-card__sub">@L["Ldap.Help.NameFilter"]</h3>
+                    @{ Code(nameFilter); }
+                    <p class="md-muted">@L["Ldap.Help.Placeholder"]</p>
+                </div>
+            </section>
+            <section class="mat-card" aria-labelledby="help-generic">
+                <div class="mat-card__head"><h2 class="mat-card__title" id="help-generic">@Ui.Icon("terminal")@L["Ldap.Help.Generic"]</h2></div>
+                <div class="mat-card__body mat-stack">
+                    <p>@L["Ldap.Help.Generic.Text"]</p>
+                    @{ Code(ldapsearch); }
+                    @{ Code(ldapsSearch); }
+                </div>
+            </section>
+        </div>
+    </div>
+    <div class="mat-col-12 mat-col-lg-6">
+        <div class="mat-stack">
+            <section class="mat-card" aria-labelledby="help-yealink">
+                <div class="mat-card__head"><h2 class="mat-card__title" id="help-yealink">@Ui.Icon("smartphone")@L["Ldap.Help.Yealink"]</h2></div>
+                <div class="mat-card__body mat-stack">
+                    <p>@L["Ldap.Help.Yealink.Text"] @L["Ldap.Help.Yealink.Names"]</p>
+                    <dl class="mat-kv">
+                        <dt>@L["Ldap.Help.Yealink.NameFilter"]</dt><dd class="mat-mono">(|(cn=*%*)(sn=%*)(givenName=%*))</dd>
+                        <dt>@L["Ldap.Help.Yealink.NumberFilter"]</dt><dd class="mat-mono">(|(telephoneNumber=*%)(mobile=*%)(homePhone=*%))</dd>
+                        <dt>@L["Ldap.Help.Yealink.Server"]</dt><dd class="mat-mono">@Model.ServerName</dd>
+                        <dt>@L["Ldap.Help.Yealink.Port"]</dt><dd class="mat-mono">@port</dd>
+                        <dt>@L["Ldap.Help.Yealink.Base"]</dt><dd class="mat-mono">@Model.BaseDn</dd>
+                        <dt>@L["Ldap.Help.Yealink.User"]</dt><dd><span class="mat-mono">@bindDn</span><small class="md-block-line md-muted">@L["Ldap.Help.Yealink.Account"]</small></dd>
+                        <dt>@L["Ldap.Help.Yealink.MaxHits"]</dt><dd class="mat-mono">50</dd>
+                        <dt>@L["Ldap.Help.Yealink.NameAttributes"]</dt><dd class="mat-mono">cn sn givenName</dd>
+                        <dt>@L["Ldap.Help.Yealink.NumberAttributes"]</dt><dd class="mat-mono">telephoneNumber mobile homePhone otherTelephone</dd>
+                        <dt>@L["Ldap.Help.Yealink.DisplayName"]</dt><dd class="mat-mono">%cn</dd>
+                        <dt>@L["Ldap.Help.Yealink.Protocol"]</dt><dd>@L["Ldap.Help.Yealink.Version3"]</dd>
+                        <dt>@L["Ldap.Help.Yealink.Lookup"]</dt><dd>@L["Ldap.Help.Yealink.On"]</dd>
+                        <dt>@L["Ldap.Help.Yealink.Sorting"]</dt><dd>@L["Ldap.Help.Yealink.On"]</dd>
+                    </dl>
+                    <p class="md-muted">@L["Ldap.Help.Placeholder"]</p>
+                </div>
+            </section>
+            <section class="mat-card" aria-labelledby="help-attributes">
+                <div class="mat-card__head"><h2 class="mat-card__title" id="help-attributes">@Ui.Icon("list")@L["Ldap.Help.Attributes"]</h2></div>
+                <div class="mat-card__body mat-stack">
+                    <p>@L["Ldap.Help.Attributes.Text"]</p>
+                    <dl class="mat-kv">
+                        <dt>@L["Ldap.Help.Attr.Name"]</dt><dd class="mat-mono">cn, displayName</dd>
+                        <dt>@L["Ldap.Help.Attr.First"]</dt><dd class="mat-mono">givenName</dd>
+                        <dt>@L["Ldap.Help.Attr.Last"]</dt><dd class="mat-mono">sn</dd>
+                        <dt>@L["Ldap.Help.Attr.Company"]</dt><dd class="mat-mono">o</dd>
+                        <dt>@L["Ldap.Help.Attr.Department"]</dt><dd class="mat-mono">ou</dd>
+                        <dt>@L["Ldap.Help.Attr.JobTitle"]</dt><dd class="mat-mono">title</dd>
+                        <dt>@L["Ldap.Help.Attr.Business"]</dt><dd class="mat-mono">telephoneNumber</dd>
+                        <dt>@L["Ldap.Help.Attr.Mobile"]</dt><dd class="mat-mono">mobile</dd>
+                        <dt>@L["Ldap.Help.Attr.Home"]</dt><dd class="mat-mono">homePhone</dd>
+                        <dt>@L["Ldap.Help.Attr.Other"]</dt><dd class="mat-mono">otherTelephone</dd>
+                        <dt>@L["Ldap.Help.Attr.Fax"]</dt><dd class="mat-mono">facsimileTelephoneNumber</dd>
+                        <dt>@L["Ldap.Help.Attr.Mail"]</dt><dd class="mat-mono">mail</dd>
+                        <dt>@L["Ldap.Help.Attr.Address"]</dt><dd class="mat-mono">street, postalCode, l, st, c, co</dd>
+                        <dt>@L["Ldap.Help.Attr.Website"]</dt><dd class="mat-mono">labeledURI</dd>
+                        <dt>@L["Ldap.Help.Attr.Notes"]</dt><dd class="mat-mono">description</dd>
+                        <dt>@L["Ldap.Help.Attr.Id"]</dt><dd class="mat-mono">uid, entryUUID</dd>
+                    </dl>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>

@@ -189,3 +189,12 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 .md-sources-cell { max-width: 24rem; overflow-wrap: anywhere; }
 /* the message of a run: its lines as written, wrapped */
 .md-sources-message { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: var(--mat-fs-sm); }
+
+/* ---- LDAP ---------------------------------------------------------------------------------------------------------- */
+/* the query log: the filter in code with scope and base under it, a lock for an encrypted connection */
+.md-ldap-query { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.md-ldap-query code { overflow-wrap: anywhere; }
+.md-ldap-lock { display: inline-flex; margin-left: var(--mat-space-1); color: var(--mat-success-text); vertical-align: middle; }
+.md-ldap-lock .mat-icon { width: 14px; height: 14px; }
+/* a filter, a command or a DN to copy: wrapped instead of scrolled (they are long, the cards narrow) */
+.md-ldap-code { white-space: pre-wrap; overflow-wrap: anywhere; }

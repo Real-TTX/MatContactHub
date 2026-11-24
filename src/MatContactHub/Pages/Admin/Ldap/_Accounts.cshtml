@@ -1,0 +1,62 @@
+@model MatContactHub.Pages.Admin.Ldap.IndexModel
+@* The tab Accounts: the list of the LDAP accounts (toolbar, table, pager, the action below); an account is edited on /Admin/Ldap/Accounts/Edit. *@
+
+<div class="mat-list">
+    <partial name="_Toolbar" model="Model.Toolbar" />
+
+    @if (Model.Accounts.Count == 0)
+    {
+        var first = Model.Toolbar.Total == 0;
+        <partial name="_Empty" model="@(new EmptyStateModel("key", L[first ? "Ldap.Accounts.Empty" : "Ldap.Accounts.NoMatch"].Value, L[first ? "Ldap.Accounts.Empty.Text" : "Lists.ChangeTools"].Value, first, "/Admin/Ldap/Accounts/Edit", L["Ldap.Account.New"].Value, Model.Toolbar.UrlReset()))" />
+    }
+    else
+    {
+        <md-table caption="@L["Ldap.Accounts"]">
+            <thead>
+                <tr>
+                    <th scope="col">@L["Ldap.Account.Col.Name"]</th>
+                    <th scope="col">@L["Ldap.Account.Col.AddressBooks"]</th>
+                    <th scope="col">@L["Common.Status"]</th>
+                    <th scope="col" class="mat-hide-sm">@L["Ldap.Account.Col.LastBind"]</th>
+                    <th scope="col"><span class="mat-sr-only">@L["Common.Actions"]</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var a in Model.Accounts)
+                {
+                    <tr>
+                        <td data-label="@L["Ldap.Account.Col.Name"]">
+                            <div class="mat-table__name">
+                                <span class="mat-avatar mat-avatar--sm" aria-hidden="true">@Ui.Icon("key")</span>
+                                <span><a class="mat-mono" href="/Admin/Ldap/Accounts/Edit?id=@a.Id">@a.Name</a>@if (a.Description is not null) { <small>@a.Description</small> }</span>
+                            </div>
+                        </td>
+                        <td data-label="@L["Ldap.Account.Col.AddressBooks"]">@(a.AllAddressBooks ? L["Ldap.Account.AllBooks"].Value : L["Ldap.Account.BooksCount", a.AddressBooks].Value)</td>
+                        <td data-label="@L["Common.Status"]">
+                            @if (a.Enabled)
+                            {
+                                <span class="mat-pill mat-pill--ok">@L["Ldap.Account.Enabled"]</span>
+                            }
+                            else
+                            {
+                                <span class="mat-pill mat-pill--error">@L["Ldap.Account.Disabled"]</span>
+                            }
+                        </td>
+                        <td data-label="@L["Ldap.Account.Col.LastBind"]" class="mat-mono mat-hide-sm">@(a.LastBindDate is { } last ? Dates.Stamp(last, Model.Zone) : L["Common.Never"].Value)</td>
+                        <td class="mat-table__cell-actions" data-label="@L["Common.Actions"]">
+                            <div class="mat-table__actions">
+                                <a class="mat-btn mat-btn--ghost mat-btn--icon mat-btn--sm" href="/Admin/Ldap/Accounts/Edit?id=@a.Id" aria-label="@L["Common.EditNamed", a.Name]" data-tip="@L["Common.Edit"]">@Ui.Icon("edit")</a>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </md-table>
+    }
+
+    <partial name="_Pager" model="Model.Pager" />
+
+    <div class="mat-actions">
+        <a class="mat-btn mat-btn--primary" href="/Admin/Ldap/Accounts/Edit">@Ui.Icon("plus")<span>@L["Ldap.Account.New"]</span></a>
+    </div>
+</div>
