@@ -24,14 +24,17 @@ public abstract class LdapMatcher
 /// </summary>
 public static class LdapFilterEvaluator
 {
-    public static LdapMatcher Compile(LdapFilter filter, LdapPhone phone) => filter switch
+    /// <summary>The filter made ready; its substring filters on numbers share one <see cref="LdapPhoneBudget"/>.</summary>
+    public static LdapMatcher Compile(LdapFilter filter, LdapPhone phone) => Compile(filter, phone, new LdapPhoneBudget());
+
+    private static LdapMatcher Compile(LdapFilter filter, LdapPhone phone, LdapPhoneBudget budget) => filter switch
     {
-        LdapFilter.And a => new AndMatcher([.. a.Filters.Select(f => Compile(f, phone))]),
-        LdapFilter.Or o => new OrMatcher([.. o.Filters.Select(f => Compile(f, phone))]),
-        LdapFilter.Not n => new NotMatcher(Compile(n.Filter, phone)),
+        LdapFilter.And a => new AndMatcher([.. a.Filters.Select(f => Compile(f, phone, budget))]),
+        LdapFilter.Or o => new OrMatcher([.. o.Filters.Select(f => Compile(f, phone, budget))]),
+        LdapFilter.Not n => new NotMatcher(Compile(n.Filter, phone, budget)),
         LdapFilter.Equality e => new EqualityMatcher(e.Attribute, e.Value, phone, approximate: false),
         LdapFilter.Approx x => new EqualityMatcher(x.Attribute, x.Value, phone, approximate: true),
-        LdapFilter.Substrings s => new SubstringMatcher(s, phone),
+        LdapFilter.Substrings s => new SubstringMatcher(s, phone, budget),
         LdapFilter.GreaterOrEqual g => new OrderingMatcher(g.Attribute, g.Value, greater: true),
         LdapFilter.LessOrEqual l => new OrderingMatcher(l.Attribute, l.Value, greater: false),
         LdapFilter.Present p => new PresentMatcher(p.Attribute),
@@ -178,14 +181,14 @@ public static class LdapFilterEvaluator
         private readonly string? _final;
         private readonly IReadOnlyList<LdapPhonePattern> _patterns = [];
 
-        public SubstringMatcher(LdapFilter.Substrings filter, LdapPhone phone) : base(filter.Attribute)
+        public SubstringMatcher(LdapFilter.Substrings filter, LdapPhone phone, LdapPhoneBudget budget) : base(filter.Attribute)
         {
             _initial = filter.Initial is null ? null : LdapMatch.Prepare(filter.Initial);
             _any = [.. filter.Any.Select(LdapMatch.Prepare)];
             _final = filter.Final is null ? null : LdapMatch.Prepare(filter.Final);
             if (LdapAttributes.IsPhone(Name))
             {
-                _patterns = phone.Patterns(filter.Initial, filter.Any, filter.Final);
+                _patterns = phone.Patterns(filter.Initial, filter.Any, filter.Final, budget);
             }
         }
 

@@ -23,6 +23,9 @@ public interface ILdapServerContext
 
     LdapBindGuard Guard { get; }
 
+    /// <summary>The slots of the searches of the whole server (<see cref="LdapServerOptions.MaxConcurrentSearches"/>).</summary>
+    SemaphoreSlim Searches { get; }
+
     LdapQueryLog Log { get; }
 
     ILogger Logger { get; }
@@ -418,7 +421,8 @@ public sealed class LdapSession
             return new LdapResult(LdapResultCode.UnwillingToPerform, string.Empty, "A bind with a name needs a password.");
         }
 
-        if (_ctx.Guard.IsBlocked(Client))
+        // the attempt is reserved before the password is checked: binds at the same time on other connections of the address count against the limit too
+        if (!_ctx.Guard.TryBegin(Client))
         {
             await Task.Delay(_ctx.Options.BindFailureDelay, _closing.Token);
             return new LdapResult(LdapResultCode.InvalidCredentials, string.Empty, "Too many failed binds from this address: try again later.");
@@ -427,24 +431,33 @@ public sealed class LdapSession
         var name = AccountNameOf(bind.Name, directory.Settings.BaseDn);
         var account = name is null ? null : directory.Accounts.GetValueOrDefault(name);
         bool ok;
-        if (account is null)
+        try
         {
-            _ctx.Passwords.SpendTime(password);
-            ok = false;
+            if (account is null)
+            {
+                _ctx.Passwords.SpendTime(password);
+                ok = false;
+            }
+            else
+            {
+                ok = _ctx.Passwords.Verify(account.PasswordHash, password) && account.Enabled;
+            }
         }
-        else
+        catch
         {
-            ok = _ctx.Passwords.Verify(account.PasswordHash, password) && account.Enabled;
+            _ctx.Guard.Failed(Client);
+            throw;
         }
 
         if (!ok || account is null)
         {
-            var failures = _ctx.Guard.Fail(Client);
+            var failures = _ctx.Guard.Failed(Client);
             _ctx.BindFailed(Client, Cut(name ?? bind.Name, 200), failures);
             await Task.Delay(_ctx.Options.BindFailureDelay, _closing.Token);
             return new LdapResult(LdapResultCode.InvalidCredentials, string.Empty, "The name or the password is wrong.");
         }
 
+        _ctx.Guard.Succeeded(Client);
         _identity = new LdapIdentity(account.Name);
         _ctx.Bound(account, Client);
         return LdapResult.Ok;
@@ -574,13 +587,10 @@ public sealed class LdapSession
         var timeLimit = request.TimeLimit > 0 ? TimeSpan.FromSeconds(Math.Min(request.TimeLimit, _ctx.Options.MaxTimeLimit.TotalSeconds)) : _ctx.Options.MaxTimeLimit;
         var paged = controls.FirstOrDefault(c => c.Oid == LdapOids.PagedResults);
 
-        LdapResult result;
-        IReadOnlyList<LdapEntry> entries;
-        List<LdapControl> responseControls = [];
+        int size = 0;
+        byte[] cookie = [];
         if (paged is not null)
         {
-            int size;
-            byte[] cookie;
             try
             {
                 (size, cookie) = LdapCodec.DecodePagedResults(paged.Value);
@@ -590,18 +600,41 @@ public sealed class LdapSession
                 await SendAsync(new LdapMessage(id, new SearchResultDone(new LdapResult(LdapResultCode.ProtocolError, string.Empty, ex.Message))), ct);
                 return;
             }
-
-            var page = _paged.Next(directory, who, request, size, cookie, serverLimit, timeLimit, ct);
-            result = page.Result;
-            entries = page.Entries;
-            responseControls.Add(new LdapControl(LdapOids.PagedResults, false, LdapCodec.EncodePagedResults(page.Total, page.Cookie)));
         }
-        else
+
+        LdapResult result;
+        IReadOnlyList<LdapEntry> entries;
+        List<LdapControl> responseControls = [];
+
+        // the searches of all connections share a few slots (they hold a thread of the pool the web pages use too); a search that gets none in time is answered busy
+        if (!await _ctx.Searches.WaitAsync(_ctx.Options.SearchQueueTimeout, ct))
         {
-            var limit = request.SizeLimit > 0 ? Math.Min(request.SizeLimit, serverLimit) : serverLimit;
-            var outcome = LdapSearchEngine.Execute(directory, who, request, limit, timeLimit, ct);
-            result = outcome.Result;
-            entries = outcome.Entries;
+            result = new LdapResult(LdapResultCode.Busy, string.Empty, "The server is busy: try again.");
+            await SendAsync(new LdapMessage(id, new SearchResultDone(result)), ct);
+            LogSearch(request, who, 0, result, watch);
+            return;
+        }
+
+        try
+        {
+            if (paged is not null)
+            {
+                var page = _paged.Next(directory, who, request, size, cookie, serverLimit, timeLimit, ct);
+                result = page.Result;
+                entries = page.Entries;
+                responseControls.Add(new LdapControl(LdapOids.PagedResults, false, LdapCodec.EncodePagedResults(page.Total, page.Cookie)));
+            }
+            else
+            {
+                var limit = request.SizeLimit > 0 ? Math.Min(request.SizeLimit, serverLimit) : serverLimit;
+                var outcome = LdapSearchEngine.Execute(directory, who, request, limit, timeLimit, ct);
+                result = outcome.Result;
+                entries = outcome.Entries;
+            }
+        }
+        finally
+        {
+            _ctx.Searches.Release();
         }
 
         var selection = new LdapAttributeSelection(request.Attributes);
@@ -620,13 +653,16 @@ public sealed class LdapSession
         batch.Add(new LdapMessage(id, new SearchResultDone(result), responseControls));
         ct.ThrowIfCancellationRequested();
         await SendAsync(batch, ct);
-        _ctx.Log.Add(new LdapLogEntry(DateTime.UtcNow, Client, who.AccountName, "search", Cut(request.BaseDn, 300), request.Scope switch
+        LogSearch(request, who, entries.Count, result, watch);
+    }
+
+    private void LogSearch(SearchRequest request, LdapIdentity who, int entries, LdapResult result, Stopwatch watch)
+        => _ctx.Log.Add(new LdapLogEntry(DateTime.UtcNow, Client, who.AccountName, "search", Cut(request.BaseDn, 300), request.Scope switch
         {
             LdapScope.BaseObject => "base",
             LdapScope.SingleLevel => "one",
             _ => "sub",
-        }, Cut(request.Filter.ToString(), 500), entries.Count, result.Code, watch.Elapsed.TotalMilliseconds, Secure));
-    }
+        }, Cut(request.Filter.ToString(), 500), entries, result.Code, watch.Elapsed.TotalMilliseconds, Secure));
 
     // ------------------------------------------------------------------ writing
 

@@ -238,14 +238,51 @@ public sealed class LdapSearchTests
         var time = new ManualTime();
         var guard = new LdapBindGuard(3, TimeSpan.FromMinutes(5), time);
         Assert.False(guard.IsBlocked("10.0.0.1"));
-        guard.Fail("10.0.0.1");
-        guard.Fail("10.0.0.1");
+        for (var i = 1; i <= 2; i++)
+        {
+            Assert.True(guard.TryBegin("10.0.0.1"));
+            Assert.Equal(i, guard.Failed("10.0.0.1"));
+        }
+
         Assert.False(guard.IsBlocked("10.0.0.1"));
-        Assert.Equal(3, guard.Fail("10.0.0.1"));
+        Assert.True(guard.TryBegin("10.0.0.1"));
+        Assert.Equal(3, guard.Failed("10.0.0.1"));
         Assert.True(guard.IsBlocked("10.0.0.1"));
+        Assert.False(guard.TryBegin("10.0.0.1"));
         Assert.False(guard.IsBlocked("10.0.0.2"));
         time.Advance(TimeSpan.FromMinutes(6));
         Assert.False(guard.IsBlocked("10.0.0.1"));
+        Assert.True(guard.TryBegin("10.0.0.1"));
+    }
+
+    [Fact]
+    public void The_bind_guard_counts_attempts_that_are_still_being_checked()
+    {
+        // binds at the same time on several connections: each one reserves its attempt before the password is checked
+        var guard = new LdapBindGuard(3, TimeSpan.FromMinutes(5), new ManualTime());
+        Assert.True(guard.TryBegin("10.0.0.1"));
+        Assert.True(guard.TryBegin("10.0.0.1"));
+        Assert.True(guard.TryBegin("10.0.0.1"));
+        Assert.False(guard.TryBegin("10.0.0.1"));
+        Assert.True(guard.IsBlocked("10.0.0.1"));
+
+        // a success gives its attempt back, a failure keeps it
+        guard.Succeeded("10.0.0.1");
+        Assert.Equal(1, guard.Failed("10.0.0.1"));
+        Assert.True(guard.TryBegin("10.0.0.1"));
+        Assert.False(guard.TryBegin("10.0.0.1"));
+
+        // many at once never get more than the limit through
+        var parallel = new LdapBindGuard(10, TimeSpan.FromMinutes(5), new ManualTime());
+        var granted = 0;
+        Parallel.For(0, 64, _ =>
+        {
+            if (parallel.TryBegin("10.0.0.9"))
+            {
+                Interlocked.Increment(ref granted);
+            }
+        });
+        Assert.Equal(10, granted);
     }
 
     [Fact]

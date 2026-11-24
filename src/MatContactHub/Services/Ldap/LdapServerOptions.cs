@@ -39,11 +39,20 @@ public sealed record LdapServerOptions
     /// <summary>The TLS handshake of LDAPS and StartTLS.</summary>
     public TimeSpan HandshakeTimeout { get; init; } = TimeSpan.FromSeconds(15);
 
-    /// <summary>The longest a search may take (the client may ask for less).</summary>
-    public TimeSpan MaxTimeLimit { get; init; } = TimeSpan.FromSeconds(60);
+    /// <summary>The longest a search may take (the client may ask for less); a search of the in-memory directory takes milliseconds.</summary>
+    public TimeSpan MaxTimeLimit { get; init; } = TimeSpan.FromSeconds(10);
 
     /// <summary>The most operations one connection may have running at the same time.</summary>
     public int MaxOperationsPerConnection { get; init; } = 16;
+
+    /// <summary>
+    /// The most searches the whole server runs at the same time (they work on the thread pool the web pages use too); the others wait for a slot up to
+    /// <see cref="SearchQueueTimeout"/> and are then answered busy.
+    /// </summary>
+    public int MaxConcurrentSearches { get; init; } = Math.Max(2, Environment.ProcessorCount * 2);
+
+    /// <summary>How long a search waits for a slot of <see cref="MaxConcurrentSearches"/> before it is answered busy.</summary>
+    public TimeSpan SearchQueueTimeout { get; init; } = TimeSpan.FromSeconds(5);
 
     /// <summary>The most open paged searches (cookies) per connection; the oldest is dropped.</summary>
     public int MaxPagedSearchesPerConnection { get; init; } = 8;
@@ -79,6 +88,8 @@ public sealed record LdapServerOptions
             HandshakeTimeout = Seconds("HandshakeTimeoutSeconds", d.HandshakeTimeout),
             MaxTimeLimit = Seconds("MaxTimeLimitSeconds", d.MaxTimeLimit),
             MaxOperationsPerConnection = Int("MaxOperationsPerConnection", d.MaxOperationsPerConnection, 1, 1000),
+            MaxConcurrentSearches = Int("MaxConcurrentSearches", d.MaxConcurrentSearches, 1, 10000),
+            SearchQueueTimeout = Seconds("SearchQueueTimeoutSeconds", d.SearchQueueTimeout),
             MaxPagedSearchesPerConnection = Int("MaxPagedSearchesPerConnection", d.MaxPagedSearchesPerConnection, 1, 1000),
             BindFailureLimit = Int("BindFailureLimit", d.BindFailureLimit, 1, 100000),
             BindFailureWindow = Seconds("BindFailureWindowSeconds", d.BindFailureWindow),

@@ -40,6 +40,9 @@ public sealed class LdapPhoneTests
     [InlineData("(telephoneNumber=*1234568)")]
     [InlineData("(telephoneNumber=040*)")]
     [InlineData("(telephoneNumber=+4930123456)")]
+    [InlineData("(telephoneNumber=+43301234567)")]
+    [InlineData("(telephoneNumber=+41 30 1234567)")]
+    [InlineData("(telephoneNumber=0043301234567)")]
     [InlineData("(mobile=*1234567)")]
     public void Other_numbers_do_not_match(string filter) => Assert.False(Match(filter, LdapTestData.Ann), filter);
 
@@ -64,6 +67,23 @@ public sealed class LdapPhoneTests
         {
             Assert.True(Match($"(|(telephoneNumber=*{caller})(mobile=*{caller})(homePhone=*{caller}))", LdapTestData.Ann), caller);
         }
+    }
+
+    [Fact]
+    public void The_readings_of_one_filter_are_limited_by_its_budget()
+    {
+        var phone = new LdapPhone("DE");
+        var budget = new LdapPhoneBudget(5);
+
+        // 030* is read as 030 and as 4930 (2), 01*02* in four ways (4 > 3 left): then as written only
+        Assert.Equal(2, phone.Patterns("030", [], null, budget).Count);
+        Assert.Equal(["01"], phone.Patterns("01", ["02"], null, budget).Select(p => p.Initial));
+        Assert.Equal(2, phone.Patterns(null, [], "0301234567", budget).Count);
+
+        // a crafted filter of hundreds of such parts stays near one pattern per part
+        var crafted = "(|" + string.Concat(Enumerable.Repeat("(telephoneNumber=01*02*03*04*05*09)", 500)) + "(telephoneNumber=*0301234567))";
+        Assert.True(Match(crafted, LdapTestData.Ann));
+        Assert.False(Match("(|" + string.Concat(Enumerable.Repeat("(telephoneNumber=01*02*03*04*05*09)", 500)) + ")", LdapTestData.Ann));
     }
 
     [Fact]

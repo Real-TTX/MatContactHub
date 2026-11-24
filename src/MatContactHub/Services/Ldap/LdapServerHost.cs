@@ -46,6 +46,7 @@ public sealed class LdapServerHost : BackgroundService, ILdapServerContext
         Log = log;
         Logger = logger;
         Guard = new LdapBindGuard(Options.BindFailureLimit, Options.BindFailureWindow);
+        Searches = new SemaphoreSlim(Options.MaxConcurrentSearches, Options.MaxConcurrentSearches);
         _server = new LdapServer(this);
     }
 
@@ -61,6 +62,8 @@ public sealed class LdapServerHost : BackgroundService, ILdapServerContext
     public PasswordService Passwords { get; }
 
     public LdapBindGuard Guard { get; }
+
+    public SemaphoreSlim Searches { get; }
 
     public LdapQueryLog Log { get; }
 

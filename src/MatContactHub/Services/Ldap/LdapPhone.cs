@@ -3,17 +3,40 @@ using PhoneNumbers;
 
 namespace MatContactHub.Services.Ldap;
 
-/// <summary>A telephone number of an entry, prepared for the filters: E.164, the national significant number and the digit forms a substring is looked for in.</summary>
-public sealed record LdapPhoneValue(string? E164, string? Nsn, IReadOnlyList<string> Forms);
+/// <summary>A telephone number of an entry, prepared for the filters: E.164 and the digit forms a substring is looked for in.</summary>
+public sealed record LdapPhoneValue(string? E164, IReadOnlyList<string> Forms);
 
 /// <summary>A substring filter on a number, in digits: one way to read the parts (an initial part, parts in between, a final part).</summary>
 public sealed record LdapPhonePattern(string? Initial, IReadOnlyList<string> Any, string? Final);
 
 /// <summary>
+/// What the readings of the substring filters on numbers of one search filter may cost together (<see cref="LdapPhone.Patterns"/>): a telephone needs a few,
+/// <see cref="Default"/> keeps a crafted filter of hundreds of such parts from multiplying the work of the search. Not thread-safe (one per compiled filter).
+/// </summary>
+public sealed class LdapPhoneBudget(int patterns = LdapPhoneBudget.Default)
+{
+    public const int Default = 256;
+
+    private int _left = patterns;
+
+    /// <summary>Takes <paramref name="count"/> patterns; false (nothing taken) when fewer are left.</summary>
+    public bool TryTake(int count)
+    {
+        if (count > _left)
+        {
+            return false;
+        }
+
+        _left -= count;
+        return true;
+    }
+}
+
+/// <summary>
 /// The telephone numbers of the LDAP server: a telephone asks for <c>+4930123</c>, <c>004930123</c>, <c>030123</c> or <c>*30123</c> and means the same number.
 /// <list type="bullet">
-/// <item>Equality: the same number in E.164 (through <see cref="PhoneNormalizer"/> with the default country) or the same national significant number;
-/// a value that is no number (an extension <c>12</c>) is compared by its digits.</item>
+/// <item>Equality: the same number in E.164 (through <see cref="PhoneNormalizer"/> with the default country, so <c>030…</c>, <c>0049 30…</c> and <c>+49 30…</c>
+/// are one number, while the same digits in another country, <c>+43 30…</c>, are another); a value that is no number (an extension <c>12</c>) is compared by its digits.</item>
 /// <item>Substring: on digits. A stored number is looked at as international digits (<c>4930123</c>), as stored (<c>030123</c>) and nationally (<c>030123</c>);
 /// a part of the filter that starts with <c>+</c>, <c>00</c> or the national prefix (<c>0</c>) is also read without it, internationally (<c>030</c> → <c>4930</c>).</item>
 /// </list>
@@ -47,11 +70,10 @@ public sealed class LdapPhone
     {
         var e164 = PhoneNormalizer.Normalize(raw, Country);
         var forms = new List<string>(3);
-        string? nsn = null;
         if (e164 is not null)
         {
             forms.Add(e164[1..]);
-            nsn = NsnOf(e164, out var national);
+            var national = NationalDigits(e164);
             if (national is not null)
             {
                 forms.Add(national);
@@ -64,7 +86,7 @@ public sealed class LdapPhone
             forms.Add(digits);
         }
 
-        return new LdapPhoneValue(e164, nsn, forms.Distinct().ToList());
+        return new LdapPhoneValue(e164, forms.Distinct().ToList());
     }
 
     /// <summary>Does the stored number equal the number of the filter (prepared with <see cref="Prepare"/> too)?</summary>
@@ -72,7 +94,8 @@ public sealed class LdapPhone
     {
         if (assertion.E164 is not null && value.E164 is not null)
         {
-            return assertion.E164 == value.E164 || (assertion.Nsn is not null && assertion.Nsn == value.Nsn);
+            // E.164 only: two countries may have the same national digits (+49 30 1234567, +43 30 1234567)
+            return assertion.E164 == value.E164;
         }
 
         // one of them is no number: the digits as written
@@ -80,8 +103,11 @@ public sealed class LdapPhone
         return a is not null && value.Forms.Contains(a);
     }
 
-    /// <summary>The ways to read a substring filter on a number; empty when a part has no digit (the filter is then compared as text).</summary>
-    public IReadOnlyList<LdapPhonePattern> Patterns(string? initial, IReadOnlyList<string> any, string? final)
+    /// <summary>
+    /// The ways to read a substring filter on a number; empty when a part has no digit (the filter is then compared as text). Every way is one more pass over every
+    /// number, so they cost <paramref name="budget"/> (one for the whole search filter): when it cannot pay for them, the parts are read as their digits only.
+    /// </summary>
+    public IReadOnlyList<LdapPhonePattern> Patterns(string? initial, IReadOnlyList<string> any, string? final, LdapPhoneBudget? budget = null)
     {
         var parts = new List<string>();
         if (initial is not null)
@@ -105,6 +131,13 @@ public sealed class LdapPhone
             }
 
             options.Add(parts.Count <= MaxAlternativeParts ? Readings(part.Trim(), digits) : [digits]);
+        }
+
+        // a filter of many such parts (an attack, no telephone) falls back to the digits as written
+        var count = options.Aggregate(1, (n, o) => n * o.Length);
+        if (count > 1 && budget is not null && !budget.TryTake(count))
+        {
+            options = [.. options.Select(o => new[] { o[0] })];
         }
 
         var result = new List<LdapPhonePattern>();
@@ -183,20 +216,13 @@ public sealed class LdapPhone
         }
     }
 
-    /// <summary>The national significant number of an E.164 number (<c>+493012345</c> → <c>3012345</c>) and its national digits (<c>03012345</c>).</summary>
-    private static string? NsnOf(string e164, out string? national)
+    /// <summary>The national digits of an E.164 number (<c>+493012345</c> → <c>03012345</c>), or null.</summary>
+    private static string? NationalDigits(string e164)
     {
-        national = null;
         try
         {
-            var number = Util.Parse(e164, null);
-            national = PhoneNormalizer.Digits(Util.Format(number, PhoneNumberFormat.NATIONAL));
-            if (national.Length == 0)
-            {
-                national = null;
-            }
-
-            return Util.GetNationalSignificantNumber(number);
+            var national = PhoneNormalizer.Digits(Util.Format(Util.Parse(e164, null), PhoneNumberFormat.NATIONAL));
+            return national.Length == 0 ? null : national;
         }
         catch (NumberParseException)
         {

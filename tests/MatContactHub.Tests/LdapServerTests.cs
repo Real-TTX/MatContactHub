@@ -377,6 +377,61 @@ public sealed class LdapServerTests : IAsyncLifetime
         }
     }
 
+    [Fact]
+    public async Task Failed_binds_at_the_same_time_on_many_connections_do_not_pass_the_limit()
+    {
+        var ctx = new TestLdapContext(LdapTestData.Directory(), Limits(o => o with { BindFailureLimit = 3, BindFailureDelay = TimeSpan.FromMilliseconds(200) }));
+        var server = new LdapServer(ctx);
+        server.Apply(true, false);
+        try
+        {
+            var clients = new List<LdapClient>();
+            for (var i = 0; i < 12; i++)
+            {
+                var client = new LdapClient();
+                await client.ConnectAsync("127.0.0.1", server.PlainPort!.Value);
+                clients.Add(client);
+            }
+
+            await Task.WhenAll(clients.Select(c => Assert.ThrowsAsync<LdapException>(() => c.BindAsync("starface", "wrong"))));
+            clients.ForEach(c => c.Dispose());
+
+            // only the reserved attempts had their password checked and counted
+            Assert.Equal(3, ctx.Failures.Count);
+        }
+        finally
+        {
+            await server.StopAsync();
+        }
+    }
+
+    [Fact]
+    public async Task A_search_without_a_free_slot_of_the_server_is_answered_busy()
+    {
+        var ctx = new TestLdapContext(LdapTestData.Directory(),
+            Limits(o => o with { MaxConcurrentSearches = 1, SearchQueueTimeout = TimeSpan.FromMilliseconds(200) }));
+        var server = new LdapServer(ctx);
+        server.Apply(true, false);
+        try
+        {
+            using var client = new LdapClient();
+            await client.ConnectAsync("127.0.0.1", server.PlainPort!.Value);
+            await client.BindAsync("starface", LdapTestData.StarfacePassword);
+
+            // another search holds the only slot
+            await ctx.Searches.WaitAsync();
+            var e = await Assert.ThrowsAsync<LdapException>(() => SearchAsync(client, "(cn=Ann*)", attributes: ["cn"]));
+            Assert.Equal(LdapException.Busy, e.ResultCode);
+
+            ctx.Searches.Release();
+            Assert.Single(await SearchAsync(client, "(cn=Ann*)", attributes: ["cn"]));
+        }
+        finally
+        {
+            await server.StopAsync();
+        }
+    }
+
     /// <summary>A server of its own with other limits; the test talks to its plain port.</summary>
     private static async Task WithServerAsync(LdapServerOptions options, Func<int, Task> test)
     {

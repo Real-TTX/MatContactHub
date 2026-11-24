@@ -70,6 +70,7 @@ internal sealed class TestLdapContext : ILdapServerContext
         Directory = directory;
         Options = options ?? new LdapServerOptions { Port = 0, SecurePort = 0, Address = IPAddress.Loopback, BindFailureDelay = TimeSpan.Zero };
         Guard = new LdapBindGuard(Options.BindFailureLimit, Options.BindFailureWindow);
+        Searches = new SemaphoreSlim(Options.MaxConcurrentSearches, Options.MaxConcurrentSearches);
     }
 
     public LdapServerOptions Options { get; }
@@ -81,6 +82,8 @@ internal sealed class TestLdapContext : ILdapServerContext
     public PasswordService Passwords => LdapTestData.Passwords;
 
     public LdapBindGuard Guard { get; }
+
+    public SemaphoreSlim Searches { get; }
 
     public LdapQueryLog Log { get; } = new();
 
