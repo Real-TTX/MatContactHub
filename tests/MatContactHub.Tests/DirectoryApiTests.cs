@@ -130,7 +130,9 @@ public sealed class DirectoryApiTests : IAsyncLifetime
         using var client = Client(_key);
         Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/api/directory/lookup?number=040555555")).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/api/directory/lookup?number=089777777")).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync("/api/directory/lookup?number=0899999999")).StatusCode);
+        var unknown = await client.GetAsync("/api/directory/lookup?number=0899999999");
+        Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
+        Assert.Equal("application/json", unknown.Content.Headers.ContentType?.MediaType);
         Assert.Equal(HttpStatusCode.BadRequest, (await client.GetAsync("/api/directory/lookup")).StatusCode);
 
         var items = (await client.GetFromJsonAsync<JsonElement>("/api/directory/search?q=person")).GetProperty("items");

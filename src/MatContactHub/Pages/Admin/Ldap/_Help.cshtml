@@ -8,8 +8,8 @@
     var bindDn = $"cn={account},{Model.BaseDn}";
     const string numberFilter = "(|(telephoneNumber=*%)(mobile=*%)(homePhone=*%)(otherTelephone=*%))";
     const string nameFilter = "(|(cn=*%*)(sn=%*)(givenName=%*)(o=%*))";
-    var ldapsearch = $"ldapsearch -H ldap://{Model.ServerName}:{port} -ZZ -D \"{bindDn}\" -W -b \"{Model.BaseDn}\" \"(telephoneNumber=*1234567)\" cn telephoneNumber mobile";
-    var ldapsSearch = $"ldapsearch -H ldaps://{Model.ServerName}:{securePort} -D \"{bindDn}\" -W -b \"{Model.BaseDn}\" \"(cn=*ann*)\" cn mail";
+    var ldapsearch = $"ldapsearch -x -H ldap://{Model.ServerName}:{port} -ZZ -D \"{bindDn}\" -W -b \"{Model.BaseDn}\" \"(telephoneNumber=*1234567)\" cn telephoneNumber mobile";
+    var ldapsSearch = $"ldapsearch -x -H ldaps://{Model.ServerName}:{securePort} -D \"{bindDn}\" -W -b \"{Model.BaseDn}\" \"(cn=*ann*)\" cn mail";
 
     void Code(string text)
     {

@@ -27,20 +27,26 @@ public sealed class TestDatabase : IAsyncDisposable
 
     public static string? Admin => Environment.GetEnvironmentVariable("MATCONTACTHUB_TEST_DB");
 
+    /// <summary>
+    /// <see cref="Admin"/> with a patient connect timeout: the whole suite creates many databases at once (each test class runs in parallel), and a server in
+    /// Docker on a busy machine may take longer than Npgsql's 15 s to accept a connection then.
+    /// </summary>
+    private static string Server => new NpgsqlConnectionStringBuilder(Admin) { Timeout = 60 }.ConnectionString;
+
     public AppDbContext Db { get; private set; } = null!;
 
     /// <summary>A new database; <paramref name="migrate"/> = false leaves it empty (a test of a migration takes it step by step).</summary>
     public static async Task<TestDatabase> CreateAsync(bool migrate = true)
     {
         var test = new TestDatabase();
-        await using (var admin = new NpgsqlConnection(Admin))
+        await using (var admin = new NpgsqlConnection(Server))
         {
             await admin.OpenAsync();
             await using var create = new NpgsqlCommand($"CREATE DATABASE \"{test._name}\"", admin);
             await create.ExecuteNonQueryAsync();
         }
 
-        var connection = new NpgsqlConnectionStringBuilder(Admin) { Database = test._name }.ConnectionString;
+        var connection = new NpgsqlConnectionStringBuilder(Server) { Database = test._name }.ConnectionString;
         test.Db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>().UseNpgsql(connection).Options);
         if (migrate)
         {
@@ -63,7 +69,7 @@ public sealed class TestDatabase : IAsyncDisposable
     {
         await Db.DisposeAsync();
         NpgsqlConnection.ClearAllPools();
-        await using var admin = new NpgsqlConnection(Admin);
+        await using var admin = new NpgsqlConnection(Server);
         await admin.OpenAsync();
         await using var drop = new NpgsqlCommand($"DROP DATABASE IF EXISTS \"{_name}\" WITH (FORCE)", admin);
         await drop.ExecuteNonQueryAsync();

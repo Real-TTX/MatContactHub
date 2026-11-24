@@ -410,9 +410,9 @@ public sealed class LdapSession
                 return new LdapResult(LdapResultCode.InvalidCredentials, string.Empty, "A password without a name.");
             }
 
-            return directory.Settings.AllowAnonymous
-                ? LdapResult.Ok
-                : new LdapResult(LdapResultCode.InappropriateAuthentication, string.Empty, "Anonymous binds are off: bind with an LDAP account.");
+            // an anonymous bind always succeeds (RFC 4513 5.1.1): it only says "nobody". What nobody may read is the search's matter: the root DSE and the
+            // subschema are open (ldapsearch -x binds anonymously before it reads them), everything else needs the setting (insufficientAccessRights otherwise)
+            return LdapResult.Ok;
         }
 
         if (password.Length == 0)

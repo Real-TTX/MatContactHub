@@ -134,6 +134,8 @@ html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 .md-numbers { display: inline-flex; flex-direction: column; gap: 2px; }
 .md-number { display: inline-flex; align-items: center; gap: var(--mat-space-1); }
 .md-number > .mat-icon { width: 14px; height: 14px; color: var(--mat-text-muted); }
+/* a number in groups (+49 30 7654321) stays on one line */
+.md-numbers a, .md-group a[href^="tel:"] { white-space: nowrap; }
 .md-book { display: inline-flex; align-items: center; gap: var(--mat-space-2); }
 
 /* the actions of the ticked rows: under the pager (LIST-05 keeps the pager directly under the table), positive to negative, Delete after a space */

@@ -58,6 +58,7 @@ namespace MatContactHub.Data.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_AddressBook", x => x.Id);
+                    table.CheckConstraint("CK_AddressBook_LdapName_Lower", "\"LdapName\" = lower(\"LdapName\")");
                 });
 
             migrationBuilder.CreateTable(
@@ -81,6 +82,7 @@ namespace MatContactHub.Data.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_LdapAccount", x => x.Id);
+                    table.CheckConstraint("CK_LdapAccount_Name_Lower", "\"Name\" = lower(\"Name\")");
                 });
 
             migrationBuilder.CreateTable(
@@ -166,6 +168,7 @@ namespace MatContactHub.Data.Migrations
                     LastRunState = table.Column<int>(type: "integer", nullable: true),
                     NextRunDate = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     LastError = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
+                    DiscoveredFields = table.Column<string>(type: "text", nullable: true),
                     CreateDate = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     CreateUserId = table.Column<long>(type: "bigint", nullable: true),
                     UpdateDate = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),

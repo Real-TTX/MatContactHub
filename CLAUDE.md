@@ -30,16 +30,36 @@ IDENT-04 distance 0.93 to MatDrive, the nearest app). Not in MatDesign's `AppReg
 ## Build / run / test
 
 - **Build:** `dotnet build MatContactHub.slnx` (SDK 10, `global.json`). Expected: 0 warnings, 0 errors.
-- **Tests:** `dotnet test`. The database tests (`[DbFact]`) run when `MATCONTACTHUB_TEST_DB` is set (an administrator connection string, e.g.
+- **Tests:** `dotnet test` (about 510). The database tests (`[DbFact]`) run when `MATCONTACTHUB_TEST_DB` is set (an administrator connection string, e.g.
   `Host=localhost;Port=7089;Username=matcontacthub;Password=matcontacthub;Database=postgres` while the local stack runs); each test creates, migrates and drops a
-  database. `TextCatalogTests` check every text key of the code and the scripts in English and German (and the keys built from enums); `PhoneNormalizerTests`,
-  `DataModelTests` (unique keys, soft delete), `PlatformTests` (the definition, the broker variables, the key check of the directory API), `AccountTests`,
-  `ContactPermissionTests` (viewer / editor / administrator / stranger on manual and synced contacts), `AddressBookServiceTests` (LDAP names without case, colour).
+  database (connect timeout 60 s: the classes run in parallel). The SQL Server tests (`SourceSqlServerTests`) run when `MATCONTACTHUB_TEST_MSSQL` holds a
+  connection string, e.g. a throw-away container: `docker run -d --rm --name mch-mssql -e ACCEPT_EULA=Y -e 'MSSQL_SA_PASSWORD=Mch!Test12345' -p 17433:1433
+  mcr.microsoft.com/mssql/server:2022-latest` and `Server=localhost,17433;User Id=sa;Password=Mch!Test12345;TrustServerCertificate=True` (stop it afterwards).
+  - shared: `TextCatalogTests` (every text key of the code and the scripts in English and German, also the keys built from enums), `PhoneNormalizerTests`,
+    `DataModelTests` (unique keys, soft delete), `PlatformTests` (the definition, the broker variables), `AccountTests`
+  - contacts (C): `ContactPermissionTests` (viewer / editor / administrator / stranger), `ContactListTests` (search over names and numbers, filters), `ContactViewTests`,
+    `ContactVCardTests`, `ContactImportTests`, `AddressBookServiceTests`, `DuplicateServiceTests`, `DirectoryApiTests` (the API in the running app)
+  - sources (B): `SourceCsvTests`, `SourceRestTests` (a fake handler), `SourceSqlServerTests`, `SourceMappingTests`, `SourceServiceTests`, `SyncEngineTests`,
+    `SyncSchedulerTests`, `SourceTextTests`
+  - LDAP (A): `LdapCodecTests` (BER round trips), `LdapFilterTests`, `LdapPhoneTests`, `LdapSearchTests`, `LdapServerTests` (a real client,
+    Novell.Directory.Ldap.NETStandard), `LdapHostTests` (the hosted server on a database), `LdapAccountServiceTests`, `LdapTextTests`
 - **Run / test the app: always rebuild the container** (`./scripts/redeploy.ps1`, `-Clean` for empty volumes). CSS, JS and cshtml are baked into the image.
 - **Test account (always):** `admin@example.com` / `Start12345` – the first account of a fresh stack (it becomes the administrator).
 - **Real UI tests are end to end in a browser** (Playwright with the installed Edge, `channel: 'msedge'`): every page, the console, a phone (390 px), dark mode.
+- **Testing LDAP with a real client:** the local stack publishes LDAP on `localhost:7389` and LDAPS on `localhost:7636` (release: 389/636). Create an LDAP
+  account (Administration → LDAP → Accounts) with access to an address book that has LDAP on, then from a container (`host.docker.internal` is the host;
+  in Git Bash put `MSYS_NO_PATHCONV=1` in front):
+  ```
+  docker run --rm alpine sh -c "apk add -q openldap-clients && ldapsearch -x -LLL -H ldap://host.docker.internal:7389 \
+    -D cn=starface,dc=matcontacthub,dc=local -w '<password>' -b dc=matcontacthub,dc=local '(|(telephoneNumber=*5556667)(mobile=*5556667))' cn telephoneNumber"
+  ```
+  Always `-x` (simple bind; without it ldapsearch tries SASL). The root DSE: `-s base -b '' '+'` (no account needed: an anonymous bind succeeds, an anonymous
+  search of the tree answers 50 unless Anonymous searches is on). Paging `-E pr=2/noprompt`, StartTLS `-ZZ`, LDAPS `ldaps://host.docker.internal:7636`; with the
+  self-signed certificate `LDAPTLS_REQCERT=never`. A wrong password answers 49. A change in the UI reaches LDAP within a second (the snapshot is rebuilt when
+  `DirectoryChanges.Version` moves); the tab Log shows every query.
 - **Migrations:** `dotnet ef migrations add <Name> -p src/MatContactHub -o Data/Migrations` (local tool in `dotnet-tools.json`; a design-time factory exists). Applied
-  at start-up. The foundation's `InitialCreate` holds the whole data model of the spec; `LdapNamesIgnoreCase` (0.1) keeps the LDAP names in small letters.
+  at start-up. Nothing has been released yet, so 0.1 has one `InitialCreate` (re-created when the four modules were merged): the whole data model, the check
+  constraints `CK_AddressBook_LdapName_Lower` / `CK_LdapAccount_Name_Lower` and the filtered unique indexes. From the first release on, add migrations.
 - **Updating MatUi:** take the release of MatDesign (`origin/main`): the CSS is the parts of `src/MatUi/wwwroot/css` joined in the order of the first line of `matui.css`;
   `matui.js`, `matui.boot.js`, `matui-icons.svg` as they are. **MatPlatform:** `node tools/matplatform-copy.js ../MatContactHub/src/MatContactHub` in MatDesign –
   the tool reads MatDesign's working tree, so only run it while MatDesign is on `main` (else copy `git show origin/main:src/MatPlatform/<file>`).
@@ -60,28 +80,38 @@ src/MatContactHub
   Services/                  Actor (who acts: person, app, system), ActivityLog, InstanceService (numbers, settings, housekeeping), SettingsStore (the one row of
                              SystemSetting), MenuService, Ui (icons, logo), ListModels (toolbar, pager), Dates, Outcome
   Services/Accounts|Auth/    profiles, user administration, sessions in the DB, MatIdentity sign-in, GDPR export/erase
-  Services/Contacts/         module C + the shared helpers: AddressBookService (THE permission check RolesAsync/RoleAsync), ContactService, DuplicateService,
-                             DirectoryApi (contacts.directory), PhoneNormalizer (shared), DirectoryChanges (shared)
-  Services/Sources/          module B: DataSourceService, SyncEngine, SyncQueue + SyncScheduler (BackgroundService)
-  Services/Ldap/             module A: LdapSettings, LdapSettingsService, LdapServerHost (BackgroundService)
+  Services/Contacts/         module C + the shared helpers: AddressBookService (THE permission check RolesAsync/RoleAsync, access, LDAP names), ContactService
+                             (list, save, hide, bulk, export), ContactSearch (words and numbers in any notation), ContactFields/ContactForm, VCard (3.0/4.0
+                             out, 2.1-4.0 in), ContactImport (CSV + vCard, preview), DuplicateService (number, e-mail, name+company; merge, ignore),
+                             DirectoryApi (contacts.directory: lookup, search), PhoneNormalizer (shared), DirectoryChanges (shared)
+  Services/Sources/          module B: SourceSettings (per kind + secrets), SourceEnvironment (protector, data folder, HTTP clients), SourceHttp (redirects
+                             by hand), connectors (Connectors.cs, RestConnector, SqlServerConnector, CsvConnector), FieldMapper (targets, templates,
+                             transforms, auto-map, SyncHash), SyncEngine (upsert, revive, delete missing), DataSourceService, SyncQueue + SyncScheduler
+  Services/Ldap/             module A: protocol (LdapMessages, LdapCodec, LdapPduReader, LdapFilter, LdapDn, LdapAttributes), directory (LdapEntry,
+                             LdapDirectory = the immutable snapshot, LdapDirectoryBuilder, LdapPhone, LdapFilterEvaluator, LdapSearchEngine,
+                             LdapPagedSearches), connections (LdapSession, LdapServer, LdapBindGuard, LdapQueryLog), LdapServerHost (hosted service:
+                             snapshot, certificate, listeners), LdapServerOptions (config section Ldap), LdapSettings(+Service), LdapAccountService,
+                             LdapCertificateService (self-signed or uploaded PFX in /data/ldap)
   Services/Mail/             MailService (MatSMTP)
   MatPlatform/               copy of the shared package (MatDesign, 2.4.0). Never edit here.
   Platform/                  MatContactHubPlatform (provides/consumes, launcher, widgets, health, settings, actions syncAll/cleanUp), MatContactHubIdentityUsers
-  Controls/                  ONE code base per control: <md-field>, <md-buttons>, <md-table>, <md-tabs>/<md-tab>
-  Pages/                     Contacts (Index = start page, Edit), AddressBooks (Index, Edit), Duplicates (Index), Sources (Index, Edit; administrators),
-                             Admin (Ldap, Users, Connections, Activity, System with tabs), Account, About, Error; Shared/_Toolbar, _Pager, _Empty, _FormSummary
+  Controls/                  ONE code base per control: <md-field>, <md-buttons>, <md-table>, <md-tabs>/<md-tab> (pages), <md-panels>/<md-panel> (tabs in a page)
+  Pages/                     Contacts (Index = start page, Edit, Import, ContactView), AddressBooks (Index, Edit), Duplicates (Index), Sources (Index, Edit, Run;
+                             administrators), Admin/Ldap (Index with the partials _General/_Certificate/_Accounts/_Log/_Help, Accounts/Edit),
+                             Admin (Users, Connections, Activity, System with tabs), Account, About, Error; Shared/_Toolbar, _Pager, _Empty, _FormSummary
   Resources/Texts/           the catalog, one file per area: Contacts.json (C), Sources.json (B), Ldap.json (A), Admin/Account/Common/Data/Js/Landing/Lists/Shell
-  wwwroot/                   css/app.css (accent + md-*), js (offline, pwa, util, zone), sw.js (shell cache, the contact pages network-first with a copy),
+  wwwroot/                   css/app.css (accent + md-*), js (contacts, offline, pwa, util, zone), sw.js (shell cache, the contact pages network-first with a copy),
                              manifest, robots.txt, llms.txt, img (logo, PWA icons, app-icons.svg)
 tests/MatContactHub.Tests    unit + database tests
 ```
 
-## Ownership of the modules
+## The modules
 
-The foundation (0.1) built everything shared; four modules extend it in parallel. **Each module owns its folder, its pages, its Texts file and its tests**, and
-touches shared files only where listed. The signatures of the stubs may change inside a module; what other modules call is marked *shared* and stays.
+The foundation (0.1) built everything shared; four modules were built on it in parallel and merged into `main` (A LDAP server, B data sources + sync,
+C contacts + address books + duplicates + directory API, D logo + PWA icons): all of them are real now, no stub is left. The table says where each area lives
+and which shared files it reaches into; keep the areas apart the same way (an area's folder, pages, Texts file and tests belong together).
 
-| Module | Owns | Shared files it may touch |
+| Module | Owns | Shared files it touches |
 |---|---|---|
 | **A – LDAP server** | `Services/Ldap/**`, `Pages/Admin/Ldap/**`, `Resources/Texts/Ldap.json`, tests `Ldap*Tests.cs`; the LDAP columns of `SystemSetting` and `LdapAccount*` | `Program.cs` (its block "The LDAP server"), `app.css` (a section "LDAP" at the end) |
 | **B – Data sources + sync** | `Services/Sources/**`, `Pages/Sources/**`, `Resources/Texts/Sources.json`, tests `Source*/Sync*Tests.cs`; `DataSource`, `FieldMapping`, `SyncRun` | `Program.cs` (its block "The data sources"), the sync parts of `Platform/MatContactHubPlatform.cs` (widget `syncRuns`, health `sync`, action `syncAll`), `app.css` (section "Sources") |
@@ -97,8 +127,8 @@ touches shared files only where listed. The signatures of the stubs may change i
 - `Services/Contacts/AddressBookService.RolesAsync/RoleAsync` – THE permission check of the address books (B and A read address books through it or as admin/system).
 - `Services/Actor.cs`, `Services/ActivityLog.cs` (actions: contact, addressbook, source, sync, ldap, user, setting – add an action there and its text
   `Activity.Action.<action>` in Admin.json), `Data/*.cs` and `AppDbContext`.
-- **Schema changes:** the data model of the spec is complete in `InitialCreate`. A module that still needs a column adds **one** migration named after it
-  (`LdapCertificateDetails`, `SourcesPreviewCache` …) and expects to re-create it on merge (the model snapshot conflicts between parallel branches).
+- **Schema changes:** add a migration named after what it does (`dotnet ef migrations add …`). Until the first release the migrations may be squashed into
+  `InitialCreate` again (delete `Data/Migrations/*` and add `InitialCreate`; check that the lower-case check constraints and the filtered indexes are in it).
 
 ## Conventions
 
@@ -118,7 +148,7 @@ binding (`MatBindingAccess.Require`) and is rate-limited (`directory`).
 
 **UI (MatDesign rules)**: CRUD = list page (toolbar above, table, pager under it, actions left below, positive → negative) + separate edit page (Save, Back, other
 buttons, space, Delete); entities with several areas get **tabs** (contact: General / Communication / Address / More / Source; address book: General / Access /
-LDAP & apps; data source: General / Connection / Mapping / Preview / Runs; LDAP: General / Certificate / Accounts / Log; System: General / Directory). Hide form
+LDAP & apps; data source: General / Connection / Mapping / Preview / Runs; LDAP: General / Certificate / Accounts / Log / Help; System: General / Directory). Hide form
 parts that make no sense for the chosen type (`show-if`). Icons via `Ui.Icon` (toolkit sprite + `wwwroot/img/app-icons.svg`). Every `td` has `data-label`. The
 version at the foot of the menu links to `/About`. `pattern` attributes must be valid with the `v` flag.
 

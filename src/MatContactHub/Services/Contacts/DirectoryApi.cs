@@ -73,7 +73,10 @@ public static class DirectoryApi
         }
 
         var hit = await FindAsync(db, ActorOf(http), number, http.RequestAborted);
-        return hit is null ? Results.NotFound() : Results.Json(hit);
+        // a JSON 404 (an empty one would become the HTML error page of the status code pages)
+        return hit is null
+            ? Results.Json(new { errors = new Dictionary<string, string> { ["number"] = "No contact has this number." } }, statusCode: StatusCodes.Status404NotFound)
+            : Results.Json(hit);
     }
 
     /// <summary><c>GET search?q=&amp;limit=</c>: the contacts of the address books shared with apps that match <paramref name="q"/>.</summary>

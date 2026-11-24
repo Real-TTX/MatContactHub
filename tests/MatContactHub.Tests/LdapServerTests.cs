@@ -97,6 +97,16 @@ public sealed class LdapServerTests : IAsyncLifetime
             Assert.Equal(LdapTestData.Base, dse.Get("namingContexts").StringValue);
         }
 
+        // an explicit anonymous bind (what ldapsearch -x does) succeeds: the root DSE is read, a search of the tree is still refused
+        using (var client = await ConnectAsync(bind: false))
+        {
+            await client.BindAsync(string.Empty, string.Empty);
+            var root = await client.SearchAsync(string.Empty, LdapClient.ScopeBase, "(objectClass=*)", null, false);
+            Assert.Single(await AllAsync(root));
+            var e = await Assert.ThrowsAsync<LdapException>(() => SearchAsync(client, "(objectClass=person)"));
+            Assert.Equal(LdapException.InsufficientAccessRights, e.ResultCode);
+        }
+
         _ctx.Directory = LdapTestData.Directory(LdapTestData.Settings(anonymous: true));
         using (var client = await ConnectAsync(bind: false))
         {

@@ -108,7 +108,9 @@ public sealed class EditModel(AppDbContext db) : AppPageModel
 
             if (saved.Ok)
             {
-                Flash(Text.T("Common.SavedNamed", ContactService.DisplayNameOf(Form.DisplayName, Form.FirstName, Form.LastName, Form.Company)));
+                // a synced contact posts only Hidden (its other fields are disabled): its name is the stored one
+                var named = Synced ? Detail!.Form : Form;
+                Flash(Text.T("Common.SavedNamed", ContactService.DisplayNameOf(named.DisplayName, named.FirstName, named.LastName, named.Company)));
                 return LocalRedirect(Synced ? $"/Contacts/Edit?id={saved.Value}" : "/Contacts");
             }
 

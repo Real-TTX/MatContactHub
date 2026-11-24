@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MatContactHub.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20261124102024_InitialCreate")]
+    [Migration("20261124115141_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -137,7 +137,10 @@ namespace MatContactHub.Data.Migrations
                         .IsUnique()
                         .HasFilter("\"UpdateState\" <> 0");
 
-                    b.ToTable("AddressBook", (string)null);
+                    b.ToTable("AddressBook", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_AddressBook_LdapName_Lower", "\"LdapName\" = lower(\"LdapName\")");
+                        });
                 });
 
             modelBuilder.Entity("MatContactHub.Data.AddressBookAccess", b =>
@@ -389,6 +392,9 @@ namespace MatContactHub.Data.Migrations
                     b.Property<bool>("DeleteMissing")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("DiscoveredFields")
+                        .HasColumnType("text");
+
                     b.Property<bool>("Enabled")
                         .HasColumnType("boolean");
 
@@ -585,7 +591,10 @@ namespace MatContactHub.Data.Migrations
                         .IsUnique()
                         .HasFilter("\"UpdateState\" <> 0");
 
-                    b.ToTable("LdapAccount", (string)null);
+                    b.ToTable("LdapAccount", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_LdapAccount_Name_Lower", "\"Name\" = lower(\"Name\")");
+                        });
                 });
 
             modelBuilder.Entity("MatContactHub.Data.LdapAccountAddressBook", b =>

@@ -32,7 +32,31 @@ public static class ContactView
         }
 
         var cls = css is null ? string.Empty : $" class=\"{css}\"";
-        return new HtmlString($"<a{cls} href=\"{WebUtility.HtmlEncode(href)}\">{WebUtility.HtmlEncode(number)}</a>");
+        return new HtmlString($"<a{cls} href=\"{WebUtility.HtmlEncode(href)}\">{WebUtility.HtmlEncode(Readable(number))}</a>");
+    }
+
+    /// <summary>
+    /// A number to read: one stored in E.164 (what the transform Phone of a data source writes, <c>+49307654321</c>) is shown in groups (<c>+49 30 7654321</c>);
+    /// any other is shown as typed.
+    /// </summary>
+    public static string? Readable(string? number)
+    {
+        var trimmed = number?.Trim();
+        var e164 = trimmed is { Length: > 1 } && trimmed[0] == '+' && !trimmed.AsSpan(1).ContainsAnyExcept("0123456789");
+        if (!e164)
+        {
+            return number;
+        }
+
+        try
+        {
+            var util = PhoneNumbers.PhoneNumberUtil.GetInstance();
+            return util.Format(util.Parse(trimmed!, null), PhoneNumbers.PhoneNumberFormat.INTERNATIONAL);
+        }
+        catch (PhoneNumbers.NumberParseException)
+        {
+            return number;
+        }
     }
 
     /// <summary>An e-mail address as a <c>mailto:</c> link (empty for none).</summary>
