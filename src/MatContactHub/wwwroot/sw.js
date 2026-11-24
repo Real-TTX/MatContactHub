@@ -2,9 +2,10 @@
    - Static files (toolkit, styles, scripts, icons): from the cache first, refreshed in the background.
    - The pages to look at (the contact list, a contact, the address books, the duplicates) come from the network; a copy of the last ones is kept, so without a
      network what was seen last is still shown (read-only: every change needs the network). Other pages without a network: the offline page with a button to try
-     again.
+     again. The copies belong to the person signed in: a page to read that redirects (to the sign-in: the session has ended, expired or revoked) deletes them,
+     and so does js/pwa.js on a page without a session and on signing out.
    - The platform API, the directory API, the search suggestions and every change (POST) are never touched. */
-const VERSION = 'matcontacthub-v2';
+const VERSION = 'matcontacthub-v3';
 const PAGES = 'mch-pages'; // the same name in js/pwa.js, which deletes it on sign-out
 const SHELL = [
   '/offline.html', '/js/offline.js', '/js/pwa.js', '/js/util.js', '/matui/matui.css', '/matui/matui.js', '/matui/matui.boot.js', '/css/app.css', '/favicon.svg',
@@ -39,6 +40,10 @@ function trim(cache, max) {
 
 function networkFirst(request, cacheName, max, fallback) {
   return fetch(request).then(response => {
+    if (cacheName === PAGES && (response.type === 'opaqueredirect' || response.redirected)) {
+      // a page to read only redirects to the sign-in: without a session the copies must not stay readable offline
+      return caches.delete(PAGES).then(() => response);
+    }
     if (response.ok) {
       const copy = response.clone();
       caches.open(cacheName).then(cache => cache.put(request, copy).then(() => trim(cache, max)));

@@ -6,13 +6,13 @@
     var index = ViewData["Index"] is true;
 }
 <!DOCTYPE html>
-<html @ClientTexts.RootAttributes() data-app="@Ui.AppId">
+@* data-signed-out: js/pwa.js deletes the offline copies of the contact pages when there is no session (it ended without signing out, say) *@
+<html @ClientTexts.RootAttributes() data-app="@Ui.AppId" data-signed-out="@(User.Identity?.IsAuthenticated != true)">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
-    <meta name="theme-color" content="#f5f4f1" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#151514" media="(prefers-color-scheme: dark)" />
+    @Ui.ThemeColor(null, null)
     <meta name="description" content="@description" />
     <meta name="robots" content="@(index ? "index,follow" : "noindex")" />
     <title>@(title == Ui.AppName ? Ui.AppName : $"{title} · {Ui.AppName}")</title>

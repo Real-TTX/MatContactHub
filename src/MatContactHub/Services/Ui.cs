@@ -34,6 +34,30 @@ public static partial class Ui
 
     public static bool IsColour(string? value) => value is not null && ColourRegex().IsMatch(value);
 
+    /// <summary>The page background (<c>--mat-bg</c> of matui.css) of a colour scheme in light and in dark: the colour of the status bar and the window.</summary>
+    public static (string Light, string Dark) Backgrounds(string? scheme) => scheme switch
+    {
+        "paper" => ("#f3eee3", "#1b1814"),
+        "contrast" => ("#ffffff", "#000000"),
+        "oled" => ("#f5f4f1", "#000000"),
+        _ => ("#f5f4f1", "#151514"),
+    };
+
+    /// <summary>
+    /// The <c>theme-color</c> of a page (status bar colour = app background): one colour when the person chose light or dark, else one per colour scheme of the
+    /// device. js/pwa.js keeps it equal to the background when the theme or the scheme changes on the page.
+    /// </summary>
+    public static IHtmlContent ThemeColor(string? theme, string? scheme)
+    {
+        var (light, dark) = Backgrounds(scheme);
+        return new HtmlString(theme switch
+        {
+            "light" => $"<meta name=\"theme-color\" content=\"{light}\" />",
+            "dark" => $"<meta name=\"theme-color\" content=\"{dark}\" />",
+            _ => $"<meta name=\"theme-color\" content=\"{light}\" media=\"(prefers-color-scheme: light)\" /><meta name=\"theme-color\" content=\"{dark}\" media=\"(prefers-color-scheme: dark)\" />",
+        });
+    }
+
     /// <summary>The logo of the menu and the sign-in: the mark of MatContactHub.</summary>
     public static IHtmlContent Logo(string size = "md")
         => new HtmlString($"<span class=\"mat-logo mat-logo--{size} md-logo\" role=\"img\" aria-label=\"{AppName}\"><svg class=\"mat-icon\" aria-hidden=\"true\" focusable=\"false\"><use href=\"#mat-i-matcontacthub\"></use></svg></span>");
