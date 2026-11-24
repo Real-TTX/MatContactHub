@@ -3,15 +3,18 @@ using MatContactHub.Data;
 using MatContactHub.Localization;
 using Microsoft.EntityFrameworkCore;
 
-namespace MatContactHub.Services;
+namespace MatContactHub.Services.Auth;
 
 public sealed record SignInResult(User? User, string? Error);
 
-/// <summary>A message for one field of a form.</summary>
-public sealed record FieldError(string Field, string Message);
+/// <summary>A new account as the registration or an administrator fills it in (not yet checked). <see cref="Role"/> null: the first account is the administrator.</summary>
+public sealed record NewAccount(string Email, string DisplayName, string Password, string? TimeZone = null, UserRole? Role = null, string? Language = null);
 
-/// <summary>Accounts: registering (the first account is the administrator) and signing in with a lockout after failed attempts.</summary>
-public sealed class AccountService(AppDbContext db, PasswordService passwords)
+/// <summary>
+/// Accounts: registering (the first account is the administrator) and signing in with a lockout after failed attempts. A visitor (<see cref="Actor.Anonymous"/>)
+/// registers only while the registration is open and never chooses a role; an administrator creates accounts with any role.
+/// </summary>
+public static class AccountService
 {
     private const int MaxFailures = 8;
 
@@ -27,56 +30,65 @@ public sealed class AccountService(AppDbContext db, PasswordService passwords)
         return MailAddress.TryCreate(email, out var parsed) && parsed.Address == email.Trim();
     }
 
-    public async Task<bool> AnyUserAsync() => await db.Users.IgnoreQueryFilters().AnyAsync();
+    public static async Task<bool> AnyUserAsync(AppDbContext db, CancellationToken ct = default) => await db.Users.IgnoreQueryFilters().AnyAsync(ct);
 
-    public Task<SystemSetting> SettingsAsync() => SettingsStore.LoadAsync(db);
+    /// <summary>May a visitor register: the first account of the installation, later only while an administrator keeps the registration open.</summary>
+    public static async Task<bool> RegistrationOpenAsync(AppDbContext db, CancellationToken ct = default)
+        => !await AnyUserAsync(db, ct) || (await SettingsStore.LoadAsync(db, ct)).RegistrationOpen;
 
-    /// <summary>Creates an account. The very first account is an administrator.</summary>
-    public async Task<(User? User, FieldError? Error)> RegisterAsync(string email, string displayName, string password, string? timeZone = null, UserRole? role = null, string? language = null)
+    /// <summary>Creates an account. The very first account is an administrator. A visitor may only while the registration is open.</summary>
+    public static async Task<(User? User, FieldError? Error)> RegisterAsync(AppDbContext db, Actor actor, PasswordService passwords, NewAccount input,
+        CancellationToken ct = default)
     {
-        email = Normalize(email);
+        if (!actor.IsAdmin && (input.Role is not null || !await RegistrationOpenAsync(db, ct)))
+        {
+            return (null, new FieldError(string.Empty, Text.T("Common.NotAllowed")));
+        }
+
+        var email = Normalize(input.Email);
         if (!IsEmail(email))
         {
             return (null, new FieldError("Email", Text.T("Account.Email.Invalid")));
         }
 
-        if (PasswordService.Check(password, email) is { } problem)
+        if (PasswordService.Check(input.Password, email) is { } problem)
         {
             return (null, new FieldError("Password", problem));
         }
 
-        if (await db.Users.IgnoreQueryFilters().AnyAsync(u => u.Email == email))
+        if (await db.Users.IgnoreQueryFilters().AnyAsync(u => u.Email == email, ct))
         {
             return (null, new FieldError("Email", Text.T("Account.Email.Taken")));
         }
 
-        var first = !await AnyUserAsync();
+        var first = !await AnyUserAsync(db, ct);
         var user = new User
         {
             Email = email,
-            DisplayName = string.IsNullOrWhiteSpace(displayName) ? email.Split('@')[0] : displayName.Trim(),
-            PasswordHash = passwords.Hash(password),
-            Role = role ?? (first ? UserRole.Admin : UserRole.User),
-            TimeZone = Dates.IsZone(timeZone) ? timeZone! : "Europe/Berlin",
-            Language = Languages.Normalize(language),
+            DisplayName = string.IsNullOrWhiteSpace(input.DisplayName) ? email.Split('@')[0] : input.DisplayName.Trim(),
+            PasswordHash = passwords.Hash(input.Password),
+            Role = input.Role ?? (first ? UserRole.Admin : UserRole.User),
+            TimeZone = Dates.IsZone(input.TimeZone) ? input.TimeZone! : "Europe/Berlin",
+            Language = Languages.Normalize(input.Language),
         };
         db.Users.Add(user);
-        await db.SaveChangesAsync();
-        await ProvisionAsync(user);
+        await db.SaveChangesAsync(ct);
+        await ProvisionAsync(db, user, ct);
         return (user, null);
     }
 
     /// <summary>What a new account needs after it was saved: it is its own creator (the audit column could not name it before it had an id).</summary>
-    public async Task ProvisionAsync(User user)
+    public static async Task ProvisionAsync(AppDbContext db, User user, CancellationToken ct = default)
     {
         user.CreateUserId ??= user.Id;
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(ct);
     }
 
-    public async Task<SignInResult> SignInAsync(string email, string password)
+    /// <summary>The sign-in with address and password (the visitor proves who they are, so there is no actor yet). Locks the account after 8 failures for 10 minutes.</summary>
+    public static async Task<SignInResult> SignInAsync(AppDbContext db, PasswordService passwords, string email, string password, CancellationToken ct = default)
     {
         email = Normalize(email);
-        var user = await db.Users.FirstOrDefaultAsync(u => u.Email == email);
+        var user = await db.Users.FirstOrDefaultAsync(u => u.Email == email, ct);
         if (user is null)
         {
             passwords.SpendTime(password);
@@ -98,7 +110,7 @@ public sealed class AccountService(AppDbContext db, PasswordService passwords)
                 user.FailedLogins = 0;
             }
 
-            await db.SaveChangesAsync();
+            await db.SaveChangesAsync(ct);
             return new SignInResult(null, Text.T("Account.Login.Wrong"));
         }
 
@@ -110,7 +122,7 @@ public sealed class AccountService(AppDbContext db, PasswordService passwords)
         user.FailedLogins = 0;
         user.LockoutUntil = null;
         user.LastLoginDate = now;
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(ct);
         return new SignInResult(user, null);
     }
 }

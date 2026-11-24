@@ -1,5 +1,6 @@
 using MatContactHub.Data;
 using MatContactHub.Services;
+using MatContactHub.Services.Auth;
 using MatContactHub.Services.Contacts;
 using MatContactHub.Services.Ldap;
 using Microsoft.AspNetCore.DataProtection;
@@ -194,7 +195,7 @@ public sealed class LdapHostTests
             Assert.Equal(LdapException.InsufficientAccessRights, e.ResultCode);
         }
 
-        var settings = await LdapSettingsService.LoadAsync(f.Db);
+        var settings = (await LdapSettingsService.LoadAsync(f.Db, Admin))!;
         Assert.True((await LdapSettingsService.SaveAsync(f.Db, Admin, settings with { AllowAnonymous = true })).Ok);
         await f.SettledAsync();
         using (var client = await f.ConnectAsync(name: null))
@@ -273,7 +274,7 @@ public sealed class LdapHostTests
     {
         await using var f = await Fixture.StartAsync(SeedAsync);
         var port = f.Host.Port!.Value;
-        var settings = await LdapSettingsService.LoadAsync(f.Db);
+        var settings = (await LdapSettingsService.LoadAsync(f.Db, Admin))!;
         Assert.True((await LdapSettingsService.SaveAsync(f.Db, Admin, settings with { LdapsEnabled = false })).Ok);
         await f.SettledAsync();
         Assert.Null(f.Host.SecurePort);

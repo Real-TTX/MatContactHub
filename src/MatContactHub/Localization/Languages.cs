@@ -1,5 +1,6 @@
 using System.Globalization;
 using MatContactHub.Services;
+using MatContactHub.Services.Auth;
 using Microsoft.AspNetCore.Localization;
 
 namespace MatContactHub.Localization;

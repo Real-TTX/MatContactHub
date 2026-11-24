@@ -2,6 +2,7 @@ using System.Net;
 using System.Security.Cryptography.X509Certificates;
 using MatContactHub.Data;
 using MatContactHub.Services;
+using MatContactHub.Services.Auth;
 using MatContactHub.Services.Ldap;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;

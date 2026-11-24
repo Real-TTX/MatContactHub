@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using MatContactHub.Data;
 using MatContactHub.Localization;
+using MatContactHub.Services.Auth;
 using MatContactHub.Services.Contacts;
 using Microsoft.EntityFrameworkCore;
 

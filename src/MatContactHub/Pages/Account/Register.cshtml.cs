@@ -1,5 +1,7 @@
+using MatContactHub.Data;
 using MatContactHub.Localization;
 using MatContactHub.Services;
+using MatContactHub.Services.Auth;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.RateLimiting;
@@ -8,7 +10,7 @@ namespace MatContactHub.Pages.Account;
 
 /// <summary>Registering. The first account of an installation is its administrator; later accounts only while the administrator keeps the registration open.</summary>
 [EnableRateLimiting("signin")]
-public sealed class RegisterModel(AccountService accounts, SessionService sessions) : PageModel
+public sealed class RegisterModel(AppDbContext db, PasswordService passwords, SessionService sessions) : PageModel
 {
     [BindProperty] public string DisplayName { get; set; } = string.Empty;
 
@@ -24,8 +26,8 @@ public sealed class RegisterModel(AccountService accounts, SessionService sessio
 
     private async Task LoadAsync()
     {
-        First = !await accounts.AnyUserAsync();
-        Open = First || (await accounts.SettingsAsync()).RegistrationOpen;
+        First = !await AccountService.AnyUserAsync(db, HttpContext.RequestAborted);
+        Open = await AccountService.RegistrationOpenAsync(db, HttpContext.RequestAborted);
     }
 
     public async Task OnGetAsync() => await LoadAsync();
@@ -44,7 +46,8 @@ public sealed class RegisterModel(AccountService accounts, SessionService sessio
             return Page();
         }
 
-        var (user, error) = await accounts.RegisterAsync(Email, DisplayName, Password, TimeZone, language: Languages.Current);
+        var (user, error) = await AccountService.RegisterAsync(db, Actor.Anonymous, passwords,
+            new NewAccount(Email, DisplayName, Password, TimeZone, Language: Languages.Current), HttpContext.RequestAborted);
         if (user is null)
         {
             ModelState.AddModelError(error!.Field, error.Message);

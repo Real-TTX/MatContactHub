@@ -1,3 +1,4 @@
+using System.Globalization;
 using MatContactHub.Data;
 using MatContactHub.Localization;
 using MatPlatform;
@@ -34,20 +35,20 @@ public sealed record SettingsChange(bool? RegistrationOpen = null, string? Publi
 /// <summary>
 /// The installation as a whole: its numbers, the settings of the system (registration, public address, the default country of the telephone numbers, how long the
 /// sync history is kept), the state of the database and the housekeeping. The admin page System, the platform contract (<c>Platform/MatContactHubPlatform</c>) and the
-/// background housekeeping go through it. A broker such as Mattiverse may set the public address (<c>MAT_PUBLIC_URL</c>): then it wins and the stored value stays as it is.
+/// background housekeeping go through it, each with its actor: the numbers, the settings and the housekeeping are for administrators (a person with the role, or
+/// the app itself: the platform API, the housekeeping), and every change of a setting goes to the activity log in the name of whoever made it. A broker such as
+/// Mattiverse may set the public address (<c>MAT_PUBLIC_URL</c>): then it wins and the stored value stays as it is.
 /// </summary>
-public sealed class InstanceService(AppDbContext db, AccountService accounts, MatPlatformSettings platform, IConfiguration configuration)
+public static class InstanceService
 {
-    private readonly string _data = configuration["DataDirectory"] ?? "/data";
-
     /// <summary>The public address in force: <c>MAT_PUBLIC_URL</c>, else the stored one; null = the address of the request.</summary>
     public static string? PublicUrlOf(SystemSetting s, MatPlatformSettings platform) => platform.AppPublicUrl ?? NormalizePublicUrl(s.PublicUrl);
 
     /// <summary>The folder of the files of the app (keys, LDAP certificate, CSV files of the sources).</summary>
-    public string DataDirectory => _data;
+    public static string DataDirectoryOf(IConfiguration configuration) => configuration["DataDirectory"] ?? "/data";
 
     /// <summary>Can the database be reached (the health check)?</summary>
-    public async Task<bool> CanConnectAsync(CancellationToken ct = default)
+    public static async Task<bool> CanConnectAsync(AppDbContext db, CancellationToken ct = default)
     {
         try
         {
@@ -60,12 +61,12 @@ public sealed class InstanceService(AppDbContext db, AccountService accounts, Ma
     }
 
     /// <summary>Can the data folder be written (the keys, the LDAP certificate, the CSV files)?</summary>
-    public bool CanWriteFiles()
+    public static bool CanWriteFiles(string dataDirectory)
     {
         try
         {
-            Directory.CreateDirectory(_data);
-            var probe = Path.Combine(_data, $".probe-{Guid.NewGuid():n}");
+            Directory.CreateDirectory(dataDirectory);
+            var probe = Path.Combine(dataDirectory, $".probe-{Guid.NewGuid():n}");
             File.WriteAllText(probe, "ok");
             File.Delete(probe);
             return true;
@@ -76,8 +77,14 @@ public sealed class InstanceService(AppDbContext db, AccountService accounts, Ma
         }
     }
 
-    public async Task<InstanceSnapshot> SnapshotAsync(CancellationToken ct = default)
+    /// <summary>The numbers of the installation; null unless the actor is an administrator.</summary>
+    public static async Task<InstanceSnapshot?> SnapshotAsync(AppDbContext db, Actor actor, CancellationToken ct = default)
     {
+        if (!actor.IsAdmin)
+        {
+            return null;
+        }
+
         var weekAgo = DateTime.UtcNow.AddDays(-7);
         return new InstanceSnapshot(
             Users: await db.Users.CountAsync(u => u.IsActive, ct),
@@ -93,27 +100,37 @@ public sealed class InstanceService(AppDbContext db, AccountService accounts, Ma
             LastActivityUtc: await db.Activities.MaxAsync(a => (DateTime?)a.OccurredDate, ct));
     }
 
-    public Task<bool> AnyUserAsync() => accounts.AnyUserAsync();
-
     /// <summary>Where the data is: <c>PostgreSQL host:port/database</c> (for the admin page; never in the platform API).</summary>
-    public string DatabaseName()
+    public static string DatabaseName(AppDbContext db)
     {
         var cs = new Npgsql.NpgsqlConnectionStringBuilder(db.Database.GetConnectionString());
         return $"PostgreSQL {cs.Host}:{cs.Port}/{cs.Database}";
     }
 
-    public async Task<SystemSettings> SettingsAsync()
+    /// <summary>The settings of the system; null unless the actor is an administrator.</summary>
+    public static async Task<SystemSettings?> SettingsAsync(AppDbContext db, Actor actor, MatPlatformSettings platform, CancellationToken ct = default)
     {
-        var s = await accounts.SettingsAsync();
+        if (!actor.IsAdmin)
+        {
+            return null;
+        }
+
+        var s = await SettingsStore.LoadAsync(db, ct);
         return new SystemSettings(s.RegistrationOpen, PublicUrlOf(s, platform), platform.AppPublicUrl is not null, s.DefaultCountry, s.SyncRunDays);
     }
 
     /// <summary>
-    /// Saves the settings of the system; a <c>null</c> leaves a value as it is, an empty address clears it. An address that <c>MAT_PUBLIC_URL</c> sets is left as it is.
-    /// Answers the field and the message of the first wrong value (nothing is saved then), else <c>null</c>.
+    /// Saves the settings of the system (administrators); a <c>null</c> leaves a value as it is, an empty address clears it. An address that <c>MAT_PUBLIC_URL</c>
+    /// sets is left as it is. Every setting that changes goes to the activity log (the setting and its new value) in the name of the actor. Answers the field and
+    /// the message of the first wrong value (nothing is saved then), a message without a field when the actor may not, else <c>null</c>.
     /// </summary>
-    public async Task<(string Field, string Message)?> SaveSettingsAsync(SettingsChange change)
+    public static async Task<FieldError?> SaveSettingsAsync(AppDbContext db, Actor actor, MatPlatformSettings platform, SettingsChange change, CancellationToken ct = default)
     {
+        if (!actor.IsAdmin)
+        {
+            return new FieldError(string.Empty, Text.T("Common.NotAllowed"));
+        }
+
         var publicUrl = platform.AppPublicUrl is null ? change.PublicUrl : null;
         string? url = null;
         if (publicUrl is not null)
@@ -121,35 +138,55 @@ public sealed class InstanceService(AppDbContext db, AccountService accounts, Ma
             url = NormalizePublicUrl(publicUrl);
             if (url is not null && !IsPublicUrl(url))
             {
-                return ("PublicUrl", Text.T("System.PublicUrl.Invalid"));
+                return new FieldError("PublicUrl", Text.T("System.PublicUrl.Invalid"));
             }
         }
 
         var country = change.DefaultCountry?.Trim().ToUpperInvariant();
         if (country is not null && !Contacts.PhoneNormalizer.IsKnownCountry(country))
         {
-            return ("DefaultCountry", Text.T("System.DefaultCountry.Invalid"));
+            return new FieldError("DefaultCountry", Text.T("System.DefaultCountry.Invalid"));
         }
 
         if (change.SyncRunDays is < 1 or > 3650)
         {
-            return ("SyncRunDays", Text.T("System.Range", 1, 3650));
+            return new FieldError("SyncRunDays", Text.T("System.Range", 1, 3650));
         }
 
-        var s = await accounts.SettingsAsync();
-        if (change.RegistrationOpen is { } open)
+        var s = await SettingsStore.LoadAsync(db, ct);
+
+        // what really changes: the name of the setting (a text of the catalog) and its new value
+        var changed = new List<(string Setting, string Value)>();
+        if (change.RegistrationOpen is { } open && open != s.RegistrationOpen)
         {
             s.RegistrationOpen = open;
+            changed.Add(("System.RegistrationOpen", ActivityLog.Text(open ? "Activity.Detail.On" : "Activity.Detail.Off")));
         }
 
-        if (publicUrl is not null)
+        if (publicUrl is not null && url != s.PublicUrl)
         {
             s.PublicUrl = url;
+            changed.Add(("System.PublicUrl", url ?? ActivityLog.Text("Activity.Detail.Cleared")));
         }
 
-        s.DefaultCountry = country ?? s.DefaultCountry;
-        s.SyncRunDays = change.SyncRunDays ?? s.SyncRunDays;
-        await db.SaveChangesAsync();
+        if (country is not null && country != s.DefaultCountry)
+        {
+            s.DefaultCountry = country;
+            changed.Add(("System.DefaultCountry", country));
+        }
+
+        if (change.SyncRunDays is { } days && days != s.SyncRunDays)
+        {
+            s.SyncRunDays = days;
+            changed.Add(("System.SyncRunDays", days.ToString(CultureInfo.InvariantCulture)));
+        }
+
+        await db.SaveChangesAsync(ct);
+        foreach (var (setting, value) in changed)
+        {
+            await ActivityLog.AddAsync(db, actor, "setting", ActivityLog.Text(setting), value, null, ct);
+        }
+
         return null;
     }
 
@@ -162,12 +199,20 @@ public sealed class InstanceService(AppDbContext db, AccountService accounts, Ma
 
     public static bool IsPublicUrl(string url) => Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https";
 
-    /// <summary>The housekeeping: ended sessions go; finished sync runs older than <see cref="SystemSetting.SyncRunDays"/> go from the history.</summary>
-    public async Task<CleanUpResult> CleanUpAsync(CancellationToken ct = default)
+    /// <summary>
+    /// The housekeeping (administrators, and the app itself every hour): ended sessions go; finished sync runs older than <see cref="SystemSetting.SyncRunDays"/> go
+    /// from the history. Null when the actor may not.
+    /// </summary>
+    public static async Task<CleanUpResult?> CleanUpAsync(AppDbContext db, Actor actor, CancellationToken ct = default)
     {
+        if (!actor.IsAdmin)
+        {
+            return null;
+        }
+
         var now = DateTime.UtcNow;
         var sessions = await db.Sessions.Where(s => s.IsRevoked || s.ExpiresDate < now.AddDays(-1)).ExecuteDeleteAsync(ct);
-        var s = await accounts.SettingsAsync();
+        var s = await SettingsStore.LoadAsync(db, ct);
         var before = now.AddDays(-Math.Max(1, s.SyncRunDays));
         var runs = await db.SyncRuns.Where(r => r.State != SyncState.Running && r.StartDate < before).ExecuteDeleteAsync(ct);
         return new CleanUpResult(sessions, runs);

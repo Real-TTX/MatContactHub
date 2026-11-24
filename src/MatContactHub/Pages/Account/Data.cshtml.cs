@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace MatContactHub.Pages.Account;
 
 /// <summary>The data of the person (GDPR): download everything as JSON (Art. 15/20), and delete the account for good (Art. 17) after the password.</summary>
-public sealed class DataModel(AppDbContext db, AccountDataService data, PasswordService passwords, SessionService sessions) : AppPageModel
+public sealed class DataModel(AppDbContext db, PasswordService passwords, SessionService sessions) : AppPageModel
 {
     [BindProperty] public string Password { get; set; } = string.Empty;
 
@@ -19,7 +19,11 @@ public sealed class DataModel(AppDbContext db, AccountDataService data, Password
     /// <summary>The export: a file to keep or to take to another app.</summary>
     public async Task<IActionResult> OnGetExportAsync()
     {
-        var json = await data.ExportAsync(UserId, HttpContext.RequestAborted);
+        if (await AccountDataService.ExportAsync(db, Actor.ForUser(Me), UserId, HttpContext.RequestAborted) is not { } json)
+        {
+            return NotFound();
+        }
+
         return File(json, "application/json", $"matcontacthub-{Dates.Iso(Today)}.json");
     }
 
@@ -37,15 +41,19 @@ public sealed class DataModel(AppDbContext db, AccountDataService data, Password
             return Page();
         }
 
-        if (await data.IsLastAdminAsync(UserId))
+        var erased = await AccountDataService.EraseAsync(db, Actor.ForUser(Me), UserId, HttpContext.RequestAborted);
+        if (erased.NotAllowed)
         {
-            ModelState.AddModelError(string.Empty, Text.T("Data.Delete.LastAdmin"));
+            return NotFound();
+        }
+
+        if (!erased.Ok)
+        {
+            ModelState.AddModelError(string.Empty, erased.Error!);
             return Page();
         }
 
-        var id = UserId;
         await sessions.SignOutAsync(HttpContext);
-        await data.EraseAsync(id);
         TempData["Flash"] = Text.T("Data.Delete.Done");
         return LocalRedirect("/Account/Login");
     }

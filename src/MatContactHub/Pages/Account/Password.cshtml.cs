@@ -2,12 +2,13 @@ using MatContactHub.Data;
 using MatContactHub.Localization;
 using MatContactHub.Services;
 using MatContactHub.Services.Accounts;
+using MatContactHub.Services.Auth;
 using Microsoft.AspNetCore.Mvc;
 
 namespace MatContactHub.Pages.Account;
 
 /// <summary>A new password: the current one first. Every other session of the person ends.</summary>
-public sealed class PasswordModel(AppDbContext db, PasswordService passwords, SessionService sessions) : AppPageModel
+public sealed class PasswordModel(AppDbContext db, PasswordService passwords) : AppPageModel
 {
     [BindProperty] public string Current { get; set; } = string.Empty;
 
@@ -27,7 +28,7 @@ public sealed class PasswordModel(AppDbContext db, PasswordService passwords, Se
             return Page();
         }
 
-        await sessions.RevokeAllAsync(UserId, SessionService.CurrentSessionId(HttpContext));
+        await UserSessions.RevokeAllAsync(db, Actor.ForUser(Me), UserId, SessionService.CurrentSessionId(HttpContext), HttpContext.RequestAborted);
         Flash(Text.T("Password.Changed"));
         return LocalRedirect("/Account/Password");
     }

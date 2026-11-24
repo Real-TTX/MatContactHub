@@ -17,12 +17,11 @@ public sealed record MenuArea(string Id, string Title, string Icon);
 
 /// <summary>
 /// The menu: the area <c>contacts</c> (New contact, Contacts, Address books, Duplicates, then the address books of the person), <c>settings</c> (the account) and
-/// <c>admin</c> (Data sources, LDAP, Users, Connections, Activity, System) for administrators.
+/// <c>admin</c> (Data sources, LDAP, Users, Connections, Activity, System) for administrators. The layout draws it through
+/// <c>Pages/Shared/MenuViewComponent</c>, which builds the model once per request.
 /// </summary>
-public sealed class MenuService(AppDbContext db, CurrentUser me)
+public static class MenuService
 {
-    private MenuModel? _model;
-
     /// <summary>The menus of the switcher: the contacts, the settings of the person and, for an administrator, the administration.</summary>
     public static IReadOnlyList<MenuArea> Areas(bool admin)
     {
@@ -52,19 +51,14 @@ public sealed class MenuService(AppDbContext db, CurrentUser me)
         return Under("/Account") ? "settings" : "contacts";
     }
 
-    public async Task<MenuModel> GetAsync()
+    /// <summary>The menu of the actor: the address books they see (through the permission check of <see cref="AddressBookService"/>).</summary>
+    public static async Task<MenuModel> GetAsync(AppDbContext db, Actor actor, CancellationToken ct = default)
     {
-        if (_model is not null)
-        {
-            return _model;
-        }
-
-        var books = await AddressBookService.ListAsync(db, Actor.ForUser(me));
-        _model = new MenuModel
+        var books = await AddressBookService.ListAsync(db, actor, ct);
+        return new MenuModel
         {
             AddressBooks = [.. books.Select(b => (b.Id, b.Name, b.Color))],
             CanCreate = books.Any(b => b.Role >= AddressBookRole.Editor),
         };
-        return _model;
     }
 }

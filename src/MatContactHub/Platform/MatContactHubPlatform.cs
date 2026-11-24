@@ -1,6 +1,7 @@
 using System.Text.Json;
 using MatContactHub.Data;
 using MatContactHub.Services;
+using MatContactHub.Services.Auth;
 using MatContactHub.Services.Contacts;
 using MatContactHub.Services.Sources;
 using MatPlatform;
@@ -13,10 +14,10 @@ namespace MatContactHub.Platform;
 /// how a consumer such as Mattiverse shows MatContactHub (<see cref="Describe"/>: tiles, the few settings, buttons), what it provides (<c>contacts.directory</c>: an app
 /// such as a telephone system gets a key to look numbers up and search the address books shared with apps), what it consumes (the sign-in and the mail that their
 /// variables set), what it adds to a shell (the launcher Contacts, widgets for administrators), its values and what its buttons do. The settings are those of the admin
-/// page System, kept in the same place (<see cref="InstanceService"/>).
+/// page System, kept in the same place (<see cref="InstanceService"/>). A call of the platform API acts as the app itself (<see cref="Actor.System"/>) in the name
+/// of its caller: <c>mattiverse</c> for the key, else the person or the client of the token; the activity log names it.
 /// </summary>
-public sealed class MatContactHubPlatform(InstanceService instance, MatPlatformSettings settings, SyncQueue syncQueue, IServiceScopeFactory scopes,
-    ILogger<MatContactHubPlatform> log)
+public sealed class MatContactHubPlatform(AppDbContext db, MatPlatformSettings settings, SyncQueue syncQueue, IConfiguration configuration, ILogger<MatContactHubPlatform> log)
     : IMatPlatformState, IMatPlatformConfiguration, IMatPlatformActions, IMatPlatformHealth, IMatPlatformWidgets
 {
     /// <summary>The id of MatContactHub in the platform (and the default client id at MatIdentity).</summary>
@@ -127,20 +128,23 @@ public sealed class MatContactHubPlatform(InstanceService instance, MatPlatformS
         o.Role("user", T("Benutzer", "User"));
     }
 
+    /// <summary>Who acts through the platform API: the app itself, named after the caller (the key of the platform is Mattiverse).</summary>
+    public static Actor ActorOf(MatPlatformCall call) => Actor.System(call.Caller == "api-key" ? "mattiverse" : call.Caller);
+
     public async Task<IReadOnlyList<MatHealthCheck>> CheckHealthAsync(MatPlatformCall call, CancellationToken ct)
     {
-        if (!await instance.CanConnectAsync(ct))
+        if (!await InstanceService.CanConnectAsync(db, ct))
         {
             return [new MatHealthCheck("database", "down", call.T("Die Datenbank ist nicht erreichbar.", "The database cannot be reached."))];
         }
 
         var checks = new List<MatHealthCheck> { new("database", "ok") };
-        checks.Add(instance.CanWriteFiles()
+        checks.Add(InstanceService.CanWriteFiles(InstanceService.DataDirectoryOf(configuration))
             ? new MatHealthCheck("files", "ok")
             : new MatHealthCheck("files", "down", call.T("Der Datenordner ist nicht beschreibbar.", "The data folder cannot be written.")));
 
-        var snapshot = await instance.SnapshotAsync(ct);
-        if (await instance.AnyUserAsync() && snapshot.Admins == 0)
+        var snapshot = (await InstanceService.SnapshotAsync(db, ActorOf(call), ct))!;
+        if (await AccountService.AnyUserAsync(db, ct) && snapshot.Admins == 0)
         {
             checks.Add(new MatHealthCheck("administrators", "degraded", call.T("Kein aktiver Administrator.", "No active administrator.")));
         }
@@ -153,8 +157,8 @@ public sealed class MatContactHubPlatform(InstanceService instance, MatPlatformS
 
     public async Task<IReadOnlyDictionary<string, MatStateValue>> GetStateAsync(MatPlatformCall call, CancellationToken ct)
     {
-        var s = await instance.SnapshotAsync(ct);
-        var st = await instance.SettingsAsync();
+        var s = (await InstanceService.SnapshotAsync(db, ActorOf(call), ct))!;
+        var st = (await InstanceService.SettingsAsync(db, ActorOf(call), settings, ct))!;
         static MatStateValue Time(DateTime? utc) => new(utc is { } t ? new DateTimeOffset(DateTime.SpecifyKind(t, DateTimeKind.Utc)) : null);
         return new Dictionary<string, MatStateValue>
         {
@@ -182,8 +186,6 @@ public sealed class MatContactHubPlatform(InstanceService instance, MatPlatformS
             return null;
         }
 
-        using var scope = scopes.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var runs = await db.SyncRuns.AsNoTracking().OrderByDescending(r => r.StartDate).Take(8)
             .Select(r => new { r.Id, r.DataSourceId, Source = r.DataSource!.Name, r.State, r.StartDate, r.Created, r.Updated, r.Deleted }).ToListAsync(ct);
         return [.. runs.Select(r => new MatWidgetItem(r.Source)
@@ -204,7 +206,7 @@ public sealed class MatContactHubPlatform(InstanceService instance, MatPlatformS
 
     public async Task<IReadOnlyDictionary<string, object?>> GetConfigurationAsync(MatPlatformCall call, CancellationToken ct)
     {
-        var st = await instance.SettingsAsync();
+        var st = (await InstanceService.SettingsAsync(db, ActorOf(call), settings, ct))!;
         return new Dictionary<string, object?>
         {
             ["registrationOpen"] = st.RegistrationOpen,
@@ -248,7 +250,8 @@ public sealed class MatContactHubPlatform(InstanceService instance, MatPlatformS
             return errors;
         }
 
-        if (await instance.SaveSettingsAsync(change) is { } error)
+        // checked and saved like on the admin page, and written to the activity log in the name of the caller
+        if (await InstanceService.SaveSettingsAsync(db, ActorOf(call), settings, change, ct) is { } error)
         {
             return new Dictionary<string, string> { [char.ToLowerInvariant(error.Field[0]) + error.Field[1..]] = error.Message };
         }
@@ -263,11 +266,11 @@ public sealed class MatContactHubPlatform(InstanceService instance, MatPlatformS
         {
             case "syncAll":
                 // the platform API is the app's own caller (signed with the platform key)
-                DataSourceService.RequestSyncAll(Actor.System("platform"), syncQueue);
+                DataSourceService.RequestSyncAll(ActorOf(call), syncQueue);
                 log.LogInformation("Sync of every data source requested through the platform API by {Caller}", call.Caller);
                 return new MatActionResult(true, call.T("Die Synchronisierung aller Datenquellen ist angestoßen.", "The sync of every data source has been started."));
             case "cleanUp":
-                var result = await instance.CleanUpAsync(ct);
+                var result = (await InstanceService.CleanUpAsync(db, ActorOf(call), ct))!;
                 log.LogInformation("Clean-up through the platform API by {Caller}: {Sessions} sessions, {Runs} sync runs", call.Caller, result.Sessions, result.SyncRuns);
                 return new MatActionResult(true, call.T($"Aufgeräumt: {result.Sessions} Sitzungen, {result.SyncRuns} Läufe.",
                     $"Cleaned up: {result.Sessions} sessions, {result.SyncRuns} runs."));

@@ -6,6 +6,8 @@ using MatContactHub.Data;
 using MatContactHub.Localization;
 using MatContactHub.Platform;
 using MatContactHub.Services;
+using MatContactHub.Services.Accounts;
+using MatContactHub.Services.Auth;
 using MatContactHub.Services.Mail;
 using MatContactHub.Services.Contacts;
 using MatContactHub.Services.Ldap;
@@ -49,14 +51,11 @@ builder.Services.AddMemoryCache();
 builder.Services.AddAntiforgery(o => o.HeaderName = "RequestVerificationToken");
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddSingleton<Assets>();
+// The infrastructure of the accounts: the password hashes, the person of the request, the cookie and the cache of the sessions. The business (accounts, sessions,
+// the installation, the menu) is static classes that take the context and the actor.
 builder.Services.AddSingleton<PasswordService>();
 builder.Services.AddScoped<CurrentUser>();
 builder.Services.AddScoped<SessionService>();
-builder.Services.AddScoped<AccountService>();
-builder.Services.AddScoped<ExternalSignInService>();
-builder.Services.AddScoped<MatContactHub.Services.Auth.AccountDataService>();
-builder.Services.AddScoped<MenuService>();
-builder.Services.AddScoped<InstanceService>();
 builder.Services.AddHostedService<MaintenanceService>();
 
 // The mail through MatSMTP (only when the environment names it).
@@ -243,9 +242,8 @@ app.MapPost("/language", async (HttpContext http, CurrentUser me, AppDbContext d
     var form = await http.Request.ReadFormAsync();
     var code = Languages.Normalize(form["language"].ToString());
     Languages.SetCookie(http.Response, code, http.Request.IsHttps);
-    if (me.Id is { } id)
+    if (me.Id is { } id && await Profiles.SetLanguageAsync(db, id, code, http.RequestAborted))
     {
-        await db.Users.Where(u => u.Id == id).ExecuteUpdateAsync(s => s.SetProperty(u => u.Language, code));
         SessionService.Invalidate();
     }
 

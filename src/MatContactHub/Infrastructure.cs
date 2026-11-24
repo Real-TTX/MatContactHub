@@ -166,8 +166,8 @@ public sealed class MaintenanceService(IServiceScopeFactory scopes, ILogger<Main
     {
         using var scope = scopes.CreateScope();
         var services = scope.ServiceProvider;
-        var instance = services.GetRequiredService<InstanceService>();
-        var result = await instance.CleanUpAsync(ct);
+        var db = services.GetRequiredService<AppDbContext>();
+        var result = (await InstanceService.CleanUpAsync(db, Actor.System("maintenance"), ct))!;
         logger.LogInformation("Housekeeping: {Sessions} old sessions and {Runs} old sync runs removed.", result.Sessions, result.SyncRuns);
     }
 }

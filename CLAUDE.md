@@ -30,13 +30,15 @@ IDENT-04 distance 0.93 to MatDrive, the nearest app). Not in MatDesign's `AppReg
 ## Build / run / test
 
 - **Build:** `dotnet build MatContactHub.slnx` (SDK 10, `global.json`). Expected: 0 warnings, 0 errors.
-- **Tests:** `dotnet test` (about 510). The database tests (`[DbFact]`) run when `MATCONTACTHUB_TEST_DB` is set (an administrator connection string, e.g.
+- **Tests:** `dotnet test` (about 550). The database tests (`[DbFact]`) run when `MATCONTACTHUB_TEST_DB` is set (an administrator connection string, e.g.
   `Host=localhost;Port=7089;Username=matcontacthub;Password=matcontacthub;Database=postgres` while the local stack runs); each test creates, migrates and drops a
   database (connect timeout 60 s: the classes run in parallel). The SQL Server tests (`SourceSqlServerTests`) run when `MATCONTACTHUB_TEST_MSSQL` holds a
   connection string, e.g. a throw-away container: `docker run -d --rm --name mch-mssql -e ACCEPT_EULA=Y -e 'MSSQL_SA_PASSWORD=Mch!Test12345' -p 17433:1433
   mcr.microsoft.com/mssql/server:2022-latest` and `Server=localhost,17433;User Id=sa;Password=Mch!Test12345;TrustServerCertificate=True` (stop it afterwards).
   - shared: `TextCatalogTests` (every text key of the code and the scripts in English and German, also the keys built from enums), `PhoneNormalizerTests`,
-    `DataModelTests` (unique keys, soft delete), `PlatformTests` (the definition, the broker variables), `AccountTests`
+    `DataModelTests` (unique keys, soft delete), `PlatformTests` (the definition, the broker variables), `AccountTests` (accounts, registration, GDPR, sessions, the
+    installation and its log, the audit columns), `ActivityLogTests` (the log worded for the reader), `AppPipelineTests` (`X-Forwarded-For` only from a trusted
+    proxy, UTF-8 text files), `ViewConventionTests` (every `td` has `data-label`, file fields and radios are `md-field`), `PwaTests` (theme-color = background)
   - contacts (C): `ContactPermissionTests` (viewer / editor / administrator / stranger), `ContactListTests` (search over names and numbers, filters), `ContactViewTests`,
     `ContactVCardTests`, `ContactImportTests`, `AddressBookServiceTests`, `DuplicateServiceTests`, `DirectoryApiTests` (the API in the running app)
   - sources (B): `SourceCsvTests`, `SourceRestTests` (a fake handler), `SourceSqlServerTests`, `SourceMappingTests`, `SourceServiceTests`, `SyncEngineTests`,
@@ -78,8 +80,10 @@ src/MatContactHub
                              (AddressBook, AddressBookAccess, Contact, DuplicateIgnore), SourceEntities.cs (DataSource, FieldMapping, SyncRun + enums),
                              LdapEntities.cs (LdapAccount, LdapAccountAddressBook), AppDbContext.cs (audit columns, soft delete, DirectoryChanges bump), Migrations/
   Services/                  Actor (who acts: person, app, system), ActivityLog, InstanceService (numbers, settings, housekeeping), SettingsStore (the one row of
-                             SystemSetting), MenuService, Ui (icons, logo), ListModels (toolbar, pager), Dates, Outcome
-  Services/Accounts|Auth/    profiles, user administration, sessions in the DB, MatIdentity sign-in, GDPR export/erase
+                             SystemSetting), MenuService, Ui (icons, logo, theme-color), ListModels (toolbar, pager), Dates, Outcome (+ FieldError)
+  Services/Accounts/         Profiles (the own account), UserAdmin (accounts, administrators)
+  Services/Auth/             AccountService (register, sign in), AccountDataService (GDPR export/erase), ExternalSignInService (MatIdentity), UserSessions (end
+                             sessions); infrastructure in DI: PasswordService, CurrentUser, SessionService (the cookie and the session cache)
   Services/Contacts/         module C + the shared helpers: AddressBookService (THE permission check RolesAsync/RoleAsync, access, LDAP names), ContactService
                              (list, save, hide, bulk, export), ContactSearch (words and numbers in any notation), ContactFields/ContactForm, VCard (3.0/4.0
                              out, 2.1-4.0 in), ContactImport (CSV + vCard, preview), DuplicateService (number, e-mail, name+company; merge, ignore),
@@ -98,7 +102,8 @@ src/MatContactHub
   Controls/                  ONE code base per control: <md-field>, <md-buttons>, <md-table>, <md-tabs>/<md-tab> (pages), <md-panels>/<md-panel> (tabs in a page)
   Pages/                     Contacts (Index = start page, Edit, Import, ContactView), AddressBooks (Index, Edit), Duplicates (Index), Sources (Index, Edit, Run;
                              administrators), Admin/Ldap (Index with the partials _General/_Certificate/_Accounts/_Log/_Help, Accounts/Edit),
-                             Admin (Users, Connections, Activity, System with tabs), Account, About, Error; Shared/_Toolbar, _Pager, _Empty, _FormSummary
+                             Admin (Users, Connections, Activity, System with tabs), Account, About, Error; Shared/_Toolbar, _Pager, _Empty, _FormSummary,
+                             MenuViewComponent (Components/Menu: the menu and New contact of the layout, built once per request through MenuService)
   Resources/Texts/           the catalog, one file per area: Contacts.json (C), Sources.json (B), Ldap.json (A), Admin/Account/Common/Data/Js/Landing/Lists/Shell
   wwwroot/                   css/app.css (accent + md-*), js (contacts, offline, pwa, util, zone), sw.js (shell cache, the contact pages network-first with a copy),
                              manifest, robots.txt, llms.txt, img (logo, PWA icons, app-icons.svg)
@@ -115,7 +120,7 @@ and which shared files it reaches into; keep the areas apart the same way (an ar
 |---|---|---|
 | **A – LDAP server** | `Services/Ldap/**`, `Pages/Admin/Ldap/**`, `Resources/Texts/Ldap.json`, tests `Ldap*Tests.cs`; the LDAP columns of `SystemSetting` and `LdapAccount*` | `Program.cs` (its block "The LDAP server"), `app.css` (a section "LDAP" at the end) |
 | **B – Data sources + sync** | `Services/Sources/**`, `Pages/Sources/**`, `Resources/Texts/Sources.json`, tests `Source*/Sync*Tests.cs`; `DataSource`, `FieldMapping`, `SyncRun` | `Program.cs` (its block "The data sources"), the sync parts of `Platform/MatContactHubPlatform.cs` (widget `syncRuns`, health `sync`, action `syncAll`), `app.css` (section "Sources") |
-| **C – Contacts, address books, duplicates, directory API** | `Services/Contacts/**` except the shared files below, `Pages/Contacts/**`, `Pages/AddressBooks/**`, `Pages/Duplicates/**`, `Resources/Texts/Contacts.json`, tests `Contact*/AddressBook*/Duplicate*/Directory*Tests.cs`; `AddressBook*`, `Contact`, `DuplicateIgnore` | `Pages/Shared/_Layout.cshtml` (the top search, suggestions), `MenuService`, `sw.js` (read pages), `app.css` (section "Contacts") |
+| **C – Contacts, address books, duplicates, directory API** | `Services/Contacts/**` except the shared files below, `Pages/Contacts/**`, `Pages/AddressBooks/**`, `Pages/Duplicates/**`, `Resources/Texts/Contacts.json`, tests `Contact*/AddressBook*/Duplicate*/Directory*Tests.cs`; `AddressBook*`, `Contact`, `DuplicateIgnore` | `Pages/Shared/_Layout.cshtml` (the top search, suggestions), `MenuService` + `Pages/Shared/Components/Menu`, `sw.js` (read pages), `app.css` (section "Contacts") |
 | **D – Logo + PWA icons** | `scripts/logo.js`, `scripts/icons.ps1`, `docs/logo/**`, `wwwroot/img/**`, `wwwroot/favicon.svg` | `Ui.Accent`, the accent lines of `app.css`, `manifest.webmanifest` and the `theme-color` metas (colours only) |
 
 **Shared, owned by the foundation (change only additively, never break a signature):**
@@ -126,14 +131,16 @@ and which shared files it reaches into; keep the areas apart the same way (an ar
   inside an explicit transaction MUST call `DirectoryChanges.Bump()` after the commit.** A reads it to rebuild its snapshot.
 - `Services/Contacts/AddressBookService.RolesAsync/RoleAsync` – THE permission check of the address books (B and A read address books through it or as admin/system).
 - `Services/Actor.cs`, `Services/ActivityLog.cs` (actions: contact, addressbook, source, sync, ldap, user, setting – add an action there and its text
-  `Activity.Action.<action>` in Admin.json), `Data/*.cs` and `AppDbContext`.
+  `Activity.Action.<action>` in Admin.json), `Data/*.cs` and `AppDbContext`. **A target or a detail of the log that is a text is never a fixed word:**
+  `ActivityLog.Text(key, values)` stores the key of the catalog and its values (`Activity.Detail.*` in Admin.json, or the module's own key), worded in the language
+  of the reader when the log is read (`ActivityLog.Show`); names, addresses and numbers are stored as they are.
 - **Schema changes:** add a migration named after what it does (`dotnet ef migrations add …`). Until the first release the migrations may be squashed into
   `InitialCreate` again (delete `Data/Migrations/*` and add `InitialCreate`; check that the lower-case check constraints and the filtered indexes are in it).
 
 ## Conventions
 
 **Database (PostgreSQL)**: tables PascalCase and singular, key always `Id` BIGINT, every record has `CreateDate/CreateUserId/UpdateDate/UpdateUserId` (filled by
-`AppDbContext.SaveChanges`), `UpdateState` (0 deleted, 1 created, 2 updated) for soft delete (`User`, `AddressBook`, `Contact`, `DataSource`, `LdapAccount`; a query
+`AppDbContext.SaveChanges`; an `ExecuteUpdate` past the change tracker sets `UpdateDate`/`UpdateUserId` itself), `UpdateState` (0 deleted, 1 created, 2 updated) for soft delete (`User`, `AddressBook`, `Contact`, `DataSource`, `LdapAccount`; a query
 filter hides deleted rows). A `Token` (uuid) where a key is a security feature or an address (`UserSession`, `Contact` = LDAP entryUUID/uid and vCard UID,
 `DataSource`, `SyncRun`). `Contact` is unique per (`DataSourceId`, `ExternalKey`) where `DataSourceId` is set – also over deleted rows, so a record that returns
 comes back as the same contact (`IgnoreQueryFilters` when upserting). `AddressBook.LdapName` and `LdapAccount.Name` are unique among the rows that exist and **ASCII in small letters** (LDAP compares ou and cn
@@ -144,17 +151,23 @@ settings are the one row of `SystemSetting` (Id 1, `SettingsStore`), including t
 **Security**: every page and API call goes through the business layer, which checks the actor again (static classes taking `AppDbContext` + `Actor`); what may not
 be seen answers 404 (`Outcome.Denied` / null). Secrets of data sources are protected with DataProtection (keys in the volume) and never go back to the browser.
 `/Admin/**` and `/Sources/**` need the role Admin (Razor conventions) and the business layer checks `IsAdmin` once more. The directory API checks the key of a
-binding (`MatBindingAccess.Require`) and is rate-limited (`directory`). The rate limits and the session address use the address of the visitor: `X-Forwarded-For` counts only from a proxy
+binding (`MatBindingAccess.Require`) and is rate-limited (`directory`). The numbers, the settings and the housekeeping of the installation (`InstanceService`) and
+the LDAP settings are for administrators (a person, or the app itself: `Actor.System` for the platform API in the name of its caller, the housekeeping, the LDAP
+server); a person exports, erases and signs out only themselves (`AccountDataService`, `UserSessions`), an administrator the others. The rate limits and the session address use the address of the visitor: `X-Forwarded-For` counts only from a proxy
 of `MAT_TRUSTED_PROXIES` or on loopback (`TrustedProxies` in Infrastructure.cs, `ForwardLimit` 1); the scheme comes from any sender (`MatForwardedProto`).
 
 **UI (MatDesign rules)**: CRUD = list page (toolbar above, table, pager under it, actions left below, positive → negative) + separate edit page (Save, Back, other
 buttons, space, Delete); entities with several areas get **tabs** (contact: General / Communication / Address / More / Source; address book: General / Access /
 LDAP & apps; data source: General / Connection / Mapping / Preview / Runs; LDAP: General / Certificate / Accounts / Log / Help; System: General / Directory). Hide form
-parts that make no sense for the chosen type (`show-if`). Icons via `Ui.Icon` (toolkit sprite + `wwwroot/img/app-icons.svg`). Every `td` has `data-label`. The
+parts that make no sense for the chosen type (`show-if`). Icons via `Ui.Icon` (toolkit sprite + `wwwroot/img/app-icons.svg`). Every `td` has `data-label` (an
+action cell too: `Common.Actions`). A file field is `<md-field kind="file">`, up to five exclusive choices are `<md-field kind="radios">` (`inline` in a table cell:
+the legend for the screen reader only), never written by hand (`ViewConventionTests`). Other buttons of an edit page stand in its one `<md-buttons>` row. The
 version at the foot of the menu links to `/About`. `pattern` attributes must be valid with the `v` flag.
 
-**Code**: Microsoft C# guidelines, file-scoped namespaces, `.editorconfig`. The business layer is static classes taking the context and the actor; no database
-queries in page models or views beyond calling the business layer. English identifiers and comments, UI texts only in the catalog (one file per area).
+**Code**: Microsoft C# guidelines, file-scoped namespaces (the namespace follows the folder), `.editorconfig`. The business layer is static classes taking the
+context and the actor; services in DI are infrastructure only (password hashes, the person of the request, the cookie and the cache of the sessions, mail, the
+environment of the sources, the LDAP host). No database queries in page models or views beyond calling the business layer (the layout gets its menu through
+`MenuViewComponent`). English identifiers and comments, UI texts only in the catalog (one file per area).
 
 **Compose files**: no environment variables to set, no placeholders; a stack (`name:`) per file; `docker-compose.yml` (release, `matcontacthub`, 7087 + 389/636),
 `.dev.yml` (`matcontacthub-dev`, nightly + pgAdmin, 7389/7636), `.local.yml` (`matcontacthub-local`, build + pgAdmin + Postgres 7089, 7389/7636, subnet

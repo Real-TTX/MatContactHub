@@ -1,4 +1,5 @@
 using MatContactHub.Data;
+using MatContactHub.Services.Auth;
 
 namespace MatContactHub.Services;
 

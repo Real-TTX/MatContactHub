@@ -1,0 +1,6 @@
+@model MenuModel
+@* the main action of the top bar: a new contact, for an editor of an address book *@
+@if (Model.CanCreate)
+{
+    <a class="mat-btn mat-btn--primary mat-btn--icon" href="/Contacts/Edit" aria-label="@L["Contacts.New"]" data-tip="@L["Contacts.New"]">@Ui.Icon("plus")</a>
+}

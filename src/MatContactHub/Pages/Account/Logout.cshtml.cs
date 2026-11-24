@@ -1,4 +1,6 @@
+using MatContactHub.Data;
 using MatContactHub.Services;
+using MatContactHub.Services.Auth;
 using MatPlatform;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -10,14 +12,16 @@ namespace MatContactHub.Pages.Account;
 /// to <c>/signout-callback-oidc</c> and the sign-in page with <c>?signedOut=1</c>); with MatIdentity configured a local session lands on <c>?signedOut=1</c>
 /// as well, so the sign-in page does not sign in again at once.
 /// </summary>
-public sealed class LogoutModel(SessionService sessions, MatPlatformSettings platform) : PageModel
+public sealed class LogoutModel(AppDbContext db, CurrentUser me, SessionService sessions, MatPlatformSettings platform) : PageModel
 {
     public IActionResult OnGet() => LocalRedirect("/Contacts");
 
     public async Task<IActionResult> OnPostAsync()
     {
         // Read before the local sign-out ends the session: only a sign-in through MatIdentity carries it.
-        var identityToken = platform.IdentityEnabled ? await sessions.IdentityTokenAsync(HttpContext) : null;
+        var identityToken = platform.IdentityEnabled
+            ? await UserSessions.IdentityTokenAsync(db, Actor.ForUser(me), SessionService.CurrentSessionId(HttpContext), HttpContext.RequestAborted)
+            : null;
         await sessions.SignOutAsync(HttpContext);
 
         if (identityToken is not null)

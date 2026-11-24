@@ -176,9 +176,7 @@ public sealed class EditModel(AppDbContext db) : AppPageModel
         var actor = Actor.ForUser(Me);
         Tab = Tabs.Contains(Tab) ? Tab : "general";
         People = await AddressBookService.PeopleAsync(db, actor, HttpContext.RequestAborted);
-        var ldap = await LdapSettingsService.LoadAsync(db, HttpContext.RequestAborted);
-        BaseDn = ldap.BaseDn;
-        LdapServerEnabled = ldap.Enabled;
+        (LdapServerEnabled, BaseDn) = await LdapSettingsService.DirectoryAsync(db, actor, HttpContext.RequestAborted) ?? (false, LdapSettings.DefaultBaseDn);
         if (Id is { } id)
         {
             Facts = await AddressBookService.FactsAsync(db, actor, id, HttpContext.RequestAborted);

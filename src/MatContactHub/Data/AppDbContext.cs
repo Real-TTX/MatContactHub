@@ -1,4 +1,5 @@
 using MatContactHub.Services;
+using MatContactHub.Services.Auth;
 using MatContactHub.Services.Contacts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;

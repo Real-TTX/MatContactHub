@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using MatContactHub.Data;
 using MatContactHub.Services;
+using MatContactHub.Services.Auth;
 using MatContactHub.Services.Ldap;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
@@ -27,7 +28,10 @@ public sealed class LdapAccountServiceTests
         Assert.Null(await LdapAccountService.GetAsync(t.Db, Person, id));
         Assert.True((await LdapAccountService.DeleteAsync(t.Db, Person, id)).NotAllowed);
         Assert.Null(await LdapAccountService.AddressBooksAsync(t.Db, Person));
-        Assert.True((await LdapSettingsService.SaveAsync(t.Db, Person, await LdapSettingsService.LoadAsync(t.Db))).NotAllowed);
+        Assert.Null(await LdapSettingsService.LoadAsync(t.Db, Person));
+        Assert.NotNull(await LdapSettingsService.DirectoryAsync(t.Db, Person));
+        Assert.Null(await LdapSettingsService.DirectoryAsync(t.Db, Actor.Anonymous));
+        Assert.True((await LdapSettingsService.SaveAsync(t.Db, Person, (await LdapSettingsService.LoadAsync(t.Db, Admin))!)).NotAllowed);
     }
 
     [DbFact]
@@ -90,7 +94,7 @@ public sealed class LdapAccountServiceTests
     public async Task The_settings_check_their_values()
     {
         await using var t = await TestDatabase.CreateAsync();
-        var s = await LdapSettingsService.LoadAsync(t.Db);
+        var s = (await LdapSettingsService.LoadAsync(t.Db, Admin))!;
         Assert.False((await LdapSettingsService.SaveAsync(t.Db, Admin, s with { BaseDn = "not a dn" })).Ok);
         Assert.False((await LdapSettingsService.SaveAsync(t.Db, Admin, s with { SizeLimit = 0 })).Ok);
         Assert.False((await LdapSettingsService.SaveAsync(t.Db, Admin, s with { DefaultCountry = "XX" })).Ok);

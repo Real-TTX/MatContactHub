@@ -79,7 +79,11 @@ public sealed class IndexModel(AppDbContext db, LdapServerHost server, LdapQuery
         Tab = Tabs.Contains(Tab) ? Tab : "general";
         if (Tab == "general")
         {
-            var s = await LdapSettingsService.LoadAsync(db, HttpContext.RequestAborted);
+            if (await LdapSettingsService.LoadAsync(db, Who, HttpContext.RequestAborted) is not { } s)
+            {
+                return NotFound();
+            }
+
             (Enabled, StartTlsEnabled, LdapsEnabled, BaseDn, AllowAnonymous, NumberFormat, DefaultCountry, SizeLimit) =
                 (s.Enabled, s.StartTlsEnabled, s.LdapsEnabled, s.BaseDn, s.AllowAnonymous, s.NumberFormat, s.DefaultCountry, s.SizeLimit);
         }
@@ -91,7 +95,11 @@ public sealed class IndexModel(AppDbContext db, LdapServerHost server, LdapQuery
     public async Task<IActionResult> OnPostAsync()
     {
         Tab = "general";
-        var current = await LdapSettingsService.LoadAsync(db, HttpContext.RequestAborted);
+        if (await LdapSettingsService.LoadAsync(db, Who, HttpContext.RequestAborted) is not { } current)
+        {
+            return NotFound();
+        }
+
         var settings = new LdapSettings(Enabled, StartTlsEnabled, LdapsEnabled, BaseDn ?? string.Empty, AllowAnonymous, NumberFormat, DefaultCountry ?? string.Empty,
             SizeLimit, current.CertificateSource);
         var saved = await LdapSettingsService.SaveAsync(db, Who, settings, HttpContext.RequestAborted);
@@ -211,7 +219,7 @@ public sealed class IndexModel(AppDbContext db, LdapServerHost server, LdapQuery
 
                 break;
             case "help":
-                BaseDn = (await LdapSettingsService.LoadAsync(db, HttpContext.RequestAborted)).BaseDn;
+                BaseDn = (await LdapSettingsService.LoadAsync(db, Who, HttpContext.RequestAborted))!.BaseDn;
                 var accounts = await LdapAccountService.ListAsync(db, Who, new LdapAccountCriteria(null, "enabled", "name", false, 1, 1), HttpContext.RequestAborted);
                 HelpAccount = accounts?.Items.FirstOrDefault()?.Name ?? "starface";
                 break;

@@ -3,7 +3,7 @@ using System.Text;
 using MatContactHub.Data;
 using Microsoft.EntityFrameworkCore;
 
-namespace MatContactHub.Services;
+namespace MatContactHub.Services.Auth;
 
 /// <summary>A person as MatIdentity names it: the subject (<c>sub</c>), the address, the names and the role claim of this app (or null).</summary>
 /// <param name="Quotas">The quotas MatIdentity set for the person here (claim <c>mat_quotas</c>); null: not known (the account keeps what it has).</param>
@@ -30,13 +30,14 @@ public sealed record ExternalSignInResult(User? User, long? LinkUserId, string? 
 /// with its password (<see cref="LinkExternalAsync"/>), because the address of an account proves nothing (anyone may register with any address); else a new
 /// account is made (with its inbox and keywords, no password). The claim <c>role</c> (<c>admin</c> or <c>user</c>) sets the role at every sign-in, except
 /// that the last active administrator is never demoted; without the claim MatContactHub keeps its own roles (the first account of all is the administrator).
+/// MatIdentity is the one who acts here (it proved who the person is), so the functions take no actor.
 /// </summary>
-public sealed class ExternalSignInService(AppDbContext db, AccountService accounts, ILogger<ExternalSignInService> logger)
+public static class ExternalSignInService
 {
     /// <summary>The domain of the address of an account whose person has no address MatContactHub may use (none, or one another account has).</summary>
     public const string PlaceholderDomain = "matidentity.invalid";
 
-    public async Task<ExternalSignInResult> SignInExternalAsync(ExternalIdentity identity, CancellationToken ct = default)
+    public static async Task<ExternalSignInResult> SignInExternalAsync(AppDbContext db, ExternalIdentity identity, ILogger logger, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(identity);
         if (string.IsNullOrWhiteSpace(identity.Subject))
@@ -53,7 +54,7 @@ public sealed class ExternalSignInService(AppDbContext db, AccountService accoun
                 return ExternalSignInResult.Refused("The account is disabled in MatContactHub.");
             }
 
-            await ApplyRoleAsync(user, identity.Role, created: false, ct);
+            await ApplyRoleAsync(db, user, identity.Role, created: false, logger, ct);
             user.LastLoginDate = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
             return ExternalSignInResult.SignedIn(user);
@@ -93,7 +94,7 @@ public sealed class ExternalSignInService(AppDbContext db, AccountService accoun
             email = null;
         }
 
-        return ExternalSignInResult.SignedIn(await CreateAsync(subject, email, identity, ct));
+        return ExternalSignInResult.SignedIn(await CreateAsync(db, subject, email, identity, logger, ct));
     }
 
     /// <summary>
@@ -101,7 +102,7 @@ public sealed class ExternalSignInService(AppDbContext db, AccountService accoun
     /// link of <see cref="SignInExternalAsync"/>): sets the subject and follows the role claim like a sign-in through MatIdentity. Refused when the account is
     /// disabled or linked meanwhile, or when another account has the subject by now.
     /// </summary>
-    public async Task<ExternalSignInResult> LinkExternalAsync(long userId, ExternalIdentity identity, CancellationToken ct = default)
+    public static async Task<ExternalSignInResult> LinkExternalAsync(AppDbContext db, long userId, ExternalIdentity identity, ILogger logger, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(identity);
         if (string.IsNullOrWhiteSpace(identity.Subject))
@@ -123,7 +124,7 @@ public sealed class ExternalSignInService(AppDbContext db, AccountService accoun
         }
 
         user.ExternalSubject = subject;
-        await ApplyRoleAsync(user, identity.Role, created: false, ct);
+        await ApplyRoleAsync(db, user, identity.Role, created: false, logger, ct);
         await db.SaveChangesAsync(ct);
         SessionService.Invalidate();
         logger.LogInformation("User {UserId} linked with MatIdentity subject {Subject} after its password", user.Id, subject);
@@ -134,9 +135,9 @@ public sealed class ExternalSignInService(AppDbContext db, AccountService accoun
     public static string PlaceholderEmail(string subject)
         => "id-" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(subject)))[..24].ToLowerInvariant() + "@" + PlaceholderDomain;
 
-    private async Task<User> CreateAsync(string subject, string? email, ExternalIdentity identity, CancellationToken ct)
+    private static async Task<User> CreateAsync(AppDbContext db, string subject, string? email, ExternalIdentity identity, ILogger logger, CancellationToken ct)
     {
-        var first = !await accounts.AnyUserAsync();
+        var first = !await AccountService.AnyUserAsync(db, ct);
         var address = email ?? PlaceholderEmail(subject);
         var name = FirstNonEmpty(identity.Name, identity.PreferredUserName, email?.Split('@')[0]) ?? "MatIdentity";
         var user = new User
@@ -150,16 +151,16 @@ public sealed class ExternalSignInService(AppDbContext db, AccountService accoun
             ExternalSubject = subject,
             LastLoginDate = DateTime.UtcNow,
         };
-        await ApplyRoleAsync(user, identity.Role, created: true, ct);
+        await ApplyRoleAsync(db, user, identity.Role, created: true, logger, ct);
         db.Users.Add(user);
         await db.SaveChangesAsync(ct);
-        await accounts.ProvisionAsync(user);
+        await AccountService.ProvisionAsync(db, user, ct);
         logger.LogInformation("User {UserId} created at the first sign-in through MatIdentity (subject {Subject})", user.Id, subject);
         return user;
     }
 
     /// <summary>The claim <c>role</c>: <c>admin</c> or <c>user</c> sets the role (never demoting the last active administrator); anything else, or none, leaves it.</summary>
-    private async Task ApplyRoleAsync(User user, string? claim, bool created, CancellationToken ct)
+    private static async Task ApplyRoleAsync(AppDbContext db, User user, string? claim, bool created, ILogger logger, CancellationToken ct)
     {
         UserRole? wanted = claim?.Trim().ToLowerInvariant() switch
         {

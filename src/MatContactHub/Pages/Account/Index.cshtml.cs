@@ -2,6 +2,7 @@ using MatContactHub.Controls;
 using MatContactHub.Data;
 using MatContactHub.Localization;
 using MatContactHub.Services;
+using MatContactHub.Services.Auth;
 using MatContactHub.Services.Mail;
 using Microsoft.AspNetCore.Mvc;
 using MatContactHub.Services.Accounts;

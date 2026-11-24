@@ -110,14 +110,16 @@ public static class UserAdmin
             .FirstOrDefaultAsync(ct);
     }
 
-    public static async Task<(User? Created, List<FieldError> Errors)> CreateAsync(AppDbContext db, AccountService accounts, long actorId, UserInput input, string? timeZone, string? language, CancellationToken ct = default)
+    public static async Task<(User? Created, List<FieldError> Errors)> CreateAsync(AppDbContext db, PasswordService passwords, long actorId, UserInput input, string? timeZone,
+        string? language, CancellationToken ct = default)
     {
         if (!await IsAdminAsync(db, actorId, ct))
         {
             return (null, [new FieldError(string.Empty, Text.T("Common.NotAllowed"))]);
         }
 
-        var (created, error) = await accounts.RegisterAsync(input.Email, input.DisplayName, input.Password, timeZone, input.Role, language);
+        var (created, error) = await AccountService.RegisterAsync(db, Actor.ForPerson(actorId, true, "admin"), passwords,
+            new NewAccount(input.Email, input.DisplayName, input.Password, timeZone, Enum.IsDefined(input.Role) ? input.Role : UserRole.User, language), ct);
         if (created is null)
         {
             return (null, [error!]);
@@ -188,8 +190,8 @@ public static class UserAdmin
         return new UserSaved([], EndSessions: !input.IsActive || newPassword);
     }
 
-    /// <summary>Deletes an account for good (GDPR Art. 17, the same as when the person deletes it); the sessions end first. Team projects stay with their teams.</summary>
-    public static async Task<UserDeleted> DeleteAsync(AppDbContext db, SessionService sessions, AccountDataService accountData, long actorId, long id, CancellationToken ct = default)
+    /// <summary>Deletes an account for good (GDPR Art. 17, the same as when the person deletes it, <see cref="AccountDataService.EraseAsync"/>): its sessions with it.</summary>
+    public static async Task<UserDeleted> DeleteAsync(AppDbContext db, long actorId, long id, CancellationToken ct = default)
     {
         if (!await IsAdminAsync(db, actorId, ct))
         {
@@ -207,9 +209,8 @@ public static class UserAdmin
             return UserDeleted.CannotDelete;
         }
 
-        await sessions.RevokeAllAsync(user.Id);
-        await accountData.EraseAsync(user.Id);
-        return UserDeleted.Done;
+        var erased = await AccountDataService.EraseAsync(db, Actor.ForPerson(actorId, true, "admin"), user.Id, ct);
+        return erased.Ok ? UserDeleted.Done : UserDeleted.CannotDelete;
     }
 
     private static async Task<bool> IsLastAdminAsync(AppDbContext db, long id, CancellationToken ct)

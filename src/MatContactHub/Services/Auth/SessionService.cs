@@ -5,11 +5,12 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 
-namespace MatContactHub.Services;
+namespace MatContactHub.Services.Auth;
 
 /// <summary>
 /// Sessions. A session is a row in <c>UserSession</c>; the cookie only carries its token (signed and encrypted by the data protection keys in the volume),
-/// so a session survives a restart of the container and can be ended. Every request checks the session (cached for a few seconds).
+/// so a session survives a restart of the container and can be ended. Every request checks the session (cached for a few seconds). The infrastructure of the
+/// cookie and its cache; ending the sessions of a person is the business of <see cref="UserSessions"/>.
 /// </summary>
 public sealed class SessionService(AppDbContext db, IMemoryCache cache)
 {
@@ -70,50 +71,7 @@ public sealed class SessionService(AppDbContext db, IMemoryCache cache)
         await http.SignOutAsync(Scheme);
     }
 
-    /// <summary>Ends every session of a user, except one (the current one, after a change of the password).</summary>
-    public async Task RevokeAllAsync(long userId, long? exceptSessionId = null)
-    {
-        await db.Sessions.Where(s => s.UserId == userId && s.Id != exceptSessionId).ExecuteUpdateAsync(s => s.SetProperty(x => x.IsRevoked, true));
-        Invalidate();
-    }
-
     public static long? CurrentSessionId(HttpContext http) => http.Items["MatContactHub.SessionId"] as long?;
-
-    /// <summary>The ID token of MatIdentity the current session started with; null for a local sign-in.</summary>
-    public async Task<string?> IdentityTokenAsync(HttpContext http)
-        => CurrentSessionId(http) is { } id
-            ? await db.Sessions.AsNoTracking().Where(s => s.Id == id).Select(s => s.IdentityToken).FirstOrDefaultAsync()
-            : null;
-
-    /// <summary>
-    /// The back-channel logout of MatIdentity: with <paramref name="identitySessionId"/> the sessions that started with that session of MatIdentity end (only those
-    /// of the person of <paramref name="subject"/> when it is named too); with <paramref name="subject"/> alone every session of the account linked with it.
-    /// An unknown subject or session ends nothing. The next request of an ended session is signed out (<see cref="ValidateAsync"/>). Answers how many ended.
-    /// </summary>
-    public async Task<int> EndIdentitySessionsAsync(string? subject, string? identitySessionId, CancellationToken ct = default)
-    {
-        var sessions = db.Sessions.Where(s => !s.IsRevoked);
-        if (!string.IsNullOrEmpty(identitySessionId))
-        {
-            sessions = sessions.Where(s => s.IdentitySessionId == identitySessionId);
-            if (!string.IsNullOrEmpty(subject))
-            {
-                sessions = sessions.Where(s => s.User!.ExternalSubject == subject);
-            }
-        }
-        else if (!string.IsNullOrEmpty(subject))
-        {
-            sessions = sessions.Where(s => s.User!.ExternalSubject == subject);
-        }
-        else
-        {
-            return 0;
-        }
-
-        var ended = await sessions.ExecuteUpdateAsync(s => s.SetProperty(x => x.IsRevoked, true), ct);
-        Invalidate();
-        return ended;
-    }
 
     /// <summary>Runs for every request with a cookie: accepts it only while its session is valid and the user is active.</summary>
     public static async Task ValidateAsync(CookieValidatePrincipalContext context)

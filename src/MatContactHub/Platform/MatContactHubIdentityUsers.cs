@@ -1,5 +1,6 @@
 using System.Globalization;
-using MatContactHub.Services;
+using MatContactHub.Data;
+using MatContactHub.Services.Auth;
 using MatPlatform;
 
 namespace MatContactHub.Platform;
@@ -12,12 +13,13 @@ namespace MatContactHub.Platform;
 /// (<see cref="MatIdentityPendingLink"/>, <c>Pages/Account/Login</c>). When MatIdentity signs the person out (back-channel logout,
 /// <see cref="IMatIdentitySessions"/>), their sessions here end too.
 /// </summary>
-public sealed class MatContactHubIdentityUsers(ExternalSignInService externalSignIn, SessionService sessions, ILogger<MatContactHubIdentityUsers> logger)
+public sealed class MatContactHubIdentityUsers(AppDbContext db, SessionService sessions, ILogger<MatContactHubIdentityUsers> logger)
     : IMatIdentityUsers, IMatIdentitySessions
 {
     public async Task<MatIdentitySignInResult> SignInAsync(MatIdentityPerson person, HttpContext http, CancellationToken ct)
     {
-        var result = await externalSignIn.SignInExternalAsync(new ExternalIdentity(person.Subject, person.Email, person.Name, person.PreferredUserName, person.Role, person.Quotas ?? new Dictionary<string, long?>()), ct);
+        var result = await ExternalSignInService.SignInExternalAsync(
+            db, new ExternalIdentity(person.Subject, person.Email, person.Name, person.PreferredUserName, person.Role, person.Quotas ?? new Dictionary<string, long?>()), logger, ct);
         if (result.LinkUserId is { } linkUserId)
         {
             return MatIdentitySignInResult.LinkRequired(linkUserId.ToString(CultureInfo.InvariantCulture));
@@ -35,7 +37,7 @@ public sealed class MatContactHubIdentityUsers(ExternalSignInService externalSig
 
     public async Task EndSessionsAsync(string? subject, string? sessionId, CancellationToken ct)
     {
-        var ended = await sessions.EndIdentitySessionsAsync(subject, sessionId, ct);
+        var ended = await UserSessions.EndIdentitySessionsAsync(db, subject, sessionId, ct);
         logger.LogInformation("MatIdentity signed out {Subject} (sid {SessionId}): {Count} session(s) ended", subject, sessionId, ended);
     }
 }

@@ -1,6 +1,6 @@
 using MatContactHub.Data;
 
-namespace MatContactHub.Services;
+namespace MatContactHub.Services.Auth;
 
 /// <summary>What the pages need to know about the signed-in person, read once per request from the session (no query of its own).</summary>
 public sealed record UserSnapshot(long Id, string Email, string DisplayName, UserRole Role, string Theme, string Scheme, string TimeZone, string Language);

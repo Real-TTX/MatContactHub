@@ -3,6 +3,7 @@ using MatContactHub.Controls;
 using MatContactHub.Data;
 using MatContactHub.Localization;
 using MatContactHub.Services;
+using MatContactHub.Services.Auth;
 using MatContactHub.Services.Ldap;
 using Microsoft.AspNetCore.Mvc;
 
@@ -105,7 +106,7 @@ public sealed class EditModel(AppDbContext db, PasswordService passwords) : AppP
         }
 
         Books = [.. books.Select(b => new Choice(b.Id.ToString(CultureInfo.InvariantCulture), b.Name, b.LdapEnabled ? "ou=" + b.LdapName : Text.T("Ldap.Account.NotInLdap")))];
-        BaseDn = (await LdapSettingsService.LoadAsync(db, HttpContext.RequestAborted)).BaseDn;
+        BaseDn = (await LdapSettingsService.LoadAsync(db, Who, HttpContext.RequestAborted))!.BaseDn;
         if (Id is { } id && await LdapAccountService.GetAsync(db, Who, id, HttpContext.RequestAborted) is { } account)
         {
             SavedName = account.Form.Name;

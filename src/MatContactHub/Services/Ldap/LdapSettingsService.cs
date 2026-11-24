@@ -9,7 +9,24 @@ namespace MatContactHub.Services.Ldap;
 /// </summary>
 public static class LdapSettingsService
 {
-    public static async Task<LdapSettings> LoadAsync(AppDbContext db, CancellationToken ct = default) => LdapSettings.From(await SettingsStore.LoadAsync(db, ct));
+    /// <summary>The settings of the server; null unless the actor is an administrator (a person with the role, or the LDAP server itself).</summary>
+    public static async Task<LdapSettings?> LoadAsync(AppDbContext db, Actor actor, CancellationToken ct = default)
+        => actor.IsAdmin ? LdapSettings.From(await SettingsStore.LoadAsync(db, ct)) : null;
+
+    /// <summary>
+    /// Whether the server runs and its base DN: what a page of an address book shows about where the address book appears (its DN). For every signed-in person and
+    /// app; null for a visitor.
+    /// </summary>
+    public static async Task<(bool Enabled, string BaseDn)?> DirectoryAsync(AppDbContext db, Actor actor, CancellationToken ct = default)
+    {
+        if (actor.IsAnonymous)
+        {
+            return null;
+        }
+
+        var s = LdapSettings.From(await SettingsStore.LoadAsync(db, ct));
+        return (s.Enabled, s.BaseDn);
+    }
 
     /// <summary>Saves the settings (administrators only). Answers the field and the message of the first wrong value (nothing is saved then), else null.</summary>
     public static async Task<Outcome<LdapSettings>> SaveAsync(AppDbContext db, Actor actor, LdapSettings settings, CancellationToken ct = default)

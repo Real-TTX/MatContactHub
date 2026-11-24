@@ -1,5 +1,6 @@
 using MatContactHub.Data;
 using MatContactHub.Localization;
+using MatContactHub.Services.Auth;
 using Microsoft.EntityFrameworkCore;
 
 namespace MatContactHub.Services.Accounts;
@@ -60,7 +61,7 @@ public static class Profiles
         return (new Profile(user.Email, user.DisplayName, user.Language, user.TimeZone, user.Scheme), []);
     }
 
-    /// <summary>The theme button of the menu (system, light, dark).</summary>
+    /// <summary>The theme button of the menu (system, light, dark). One statement past the change tracker, so it fills the audit columns itself.</summary>
     public static async Task<bool> SetThemeAsync(AppDbContext db, long userId, string theme, CancellationToken ct = default)
     {
         if (theme is not ("system" or "light" or "dark"))
@@ -68,8 +69,21 @@ public static class Profiles
             return false;
         }
 
-        await db.Users.Where(u => u.Id == userId).ExecuteUpdateAsync(s => s.SetProperty(u => u.Theme, theme), ct);
-        return true;
+        var now = DateTime.UtcNow;
+        return await db.Users.Where(u => u.Id == userId)
+            .ExecuteUpdateAsync(s => s.SetProperty(u => u.Theme, theme).SetProperty(u => u.UpdateDate, now).SetProperty(u => u.UpdateUserId, userId), ct) > 0;
+    }
+
+    /// <summary>
+    /// The language switch of the pages (EN / DE) for a signed-in person: their account keeps it. One statement past the change tracker, so it fills the audit
+    /// columns itself. False when the account is gone.
+    /// </summary>
+    public static async Task<bool> SetLanguageAsync(AppDbContext db, long userId, string language, CancellationToken ct = default)
+    {
+        var code = Languages.Normalize(language);
+        var now = DateTime.UtcNow;
+        return await db.Users.Where(u => u.Id == userId)
+            .ExecuteUpdateAsync(s => s.SetProperty(u => u.Language, code).SetProperty(u => u.UpdateDate, now).SetProperty(u => u.UpdateUserId, userId), ct) > 0;
     }
 
     /// <summary>Checks the password of the person (before something that cannot be undone). Returns the address of the account, or <c>null</c> when it is gone.</summary>

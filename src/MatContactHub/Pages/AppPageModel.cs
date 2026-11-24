@@ -1,4 +1,5 @@
 using MatContactHub.Services;
+using MatContactHub.Services.Auth;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 

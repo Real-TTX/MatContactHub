@@ -12,3 +12,6 @@ public sealed record Outcome<T>(T? Value, string? Error, bool NotAllowed = false
     /// <summary>The record does not exist or the person may not do this: the page answers 404, exactly like for a record that is not there.</summary>
     public static Outcome<T> Denied() => new(default, null, true);
 }
+
+/// <summary>A message for one field of a form.</summary>
+public sealed record FieldError(string Field, string Message);

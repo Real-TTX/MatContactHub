@@ -4,11 +4,12 @@ using MatContactHub.Data;
 using MatContactHub.Services;
 using Microsoft.AspNetCore.Mvc;
 using MatContactHub.Services.Accounts;
+using MatContactHub.Services.Auth;
 
 namespace MatContactHub.Pages.Admin.Users;
 
 /// <summary>An account: name, address, role, locked or not, a new password. The last active administrator cannot lose the role, be locked or be deleted.</summary>
-public sealed class EditModel(AppDbContext db, AccountService accounts, PasswordService passwords, SessionService sessions, MatContactHub.Services.Auth.AccountDataService accountData) : AppPageModel
+public sealed class EditModel(AppDbContext db, PasswordService passwords) : AppPageModel
 {
     [BindProperty(SupportsGet = true)] public long? Id { get; set; }
 
@@ -55,7 +56,7 @@ public sealed class EditModel(AppDbContext db, AccountService accounts, Password
         var input = new UserInput(DisplayName, Email, Role, IsActive, Password);
         if (Id is not { } id)
         {
-            var (created, errors) = await UserAdmin.CreateAsync(db, accounts, UserId, input, Me.TimeZone, Languages.Current, HttpContext.RequestAborted);
+            var (created, errors) = await UserAdmin.CreateAsync(db, passwords, UserId, input, Me.TimeZone, Languages.Current, HttpContext.RequestAborted);
             if (created is null)
             {
                 errors.ForEach(e => ModelState.AddModelError(e.Field, e.Message));
@@ -80,7 +81,7 @@ public sealed class EditModel(AppDbContext db, AccountService accounts, Password
 
         if (saved.EndSessions)
         {
-            await sessions.RevokeAllAsync(id, IsSelf ? SessionService.CurrentSessionId(HttpContext) : null);
+            await UserSessions.RevokeAllAsync(db, Actor.ForUser(Me), id, IsSelf ? SessionService.CurrentSessionId(HttpContext) : null, HttpContext.RequestAborted);
         }
 
         SessionService.Invalidate();
@@ -90,7 +91,7 @@ public sealed class EditModel(AppDbContext db, AccountService accounts, Password
 
     public async Task<IActionResult> OnPostDeleteAsync()
     {
-        switch (await UserAdmin.DeleteAsync(db, sessions, accountData, UserId, Id ?? 0, HttpContext.RequestAborted))
+        switch (await UserAdmin.DeleteAsync(db, UserId, Id ?? 0, HttpContext.RequestAborted))
         {
             case UserDeleted.Done:
                 Flash(Text.T("Users.Deleted", DisplayName));

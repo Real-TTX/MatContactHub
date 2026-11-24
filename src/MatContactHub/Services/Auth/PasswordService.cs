@@ -3,7 +3,7 @@ using MatContactHub.Data;
 using MatContactHub.Localization;
 using Microsoft.AspNetCore.Identity;
 
-namespace MatContactHub.Services;
+namespace MatContactHub.Services.Auth;
 
 /// <summary>Password hashes (PBKDF2 with a salt, the format of ASP.NET Core) and the rules for a new password.</summary>
 public sealed class PasswordService

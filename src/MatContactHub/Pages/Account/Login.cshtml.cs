@@ -1,6 +1,7 @@
 using System.Globalization;
+using MatContactHub.Data;
 using MatContactHub.Localization;
-using MatContactHub.Services;
+using MatContactHub.Services.Auth;
 using MatPlatform;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc;
@@ -18,7 +19,7 @@ namespace MatContactHub.Pages.Account;
 /// in without linking anything; Cancel deletes the pending link.
 /// </summary>
 [EnableRateLimiting("signin")]
-public sealed class LoginModel(AccountService accounts, SessionService sessions, ExternalSignInService externalSignIn, MatPlatformSettings platform, ILogger<LoginModel> logger)
+public sealed class LoginModel(AppDbContext db, PasswordService passwords, SessionService sessions, MatPlatformSettings platform, ILogger<LoginModel> logger)
     : PageModel
 {
     [BindProperty] public string Email { get; set; } = string.Empty;
@@ -74,26 +75,26 @@ public sealed class LoginModel(AccountService accounts, SessionService sessions,
             }
         }
 
-        if (!await accounts.AnyUserAsync())
+        if (!await AccountService.AnyUserAsync(db, HttpContext.RequestAborted))
         {
             return LocalRedirect("/Account/Register");
         }
 
-        CanRegister = (await accounts.SettingsAsync()).RegistrationOpen;
+        CanRegister = await AccountService.RegistrationOpenAsync(db, HttpContext.RequestAborted);
         return Page();
     }
 
     public async Task<IActionResult> OnPostAsync(CancellationToken ct)
     {
         Prepare();
-        CanRegister = (await accounts.SettingsAsync()).RegistrationOpen;
+        CanRegister = await AccountService.RegistrationOpenAsync(db, ct);
         if (string.IsNullOrWhiteSpace(Email) || string.IsNullOrEmpty(Password))
         {
             ModelState.AddModelError(nameof(Email), Text.T("Account.Login.BothRequired"));
             return Page();
         }
 
-        var result = await accounts.SignInAsync(Email, Password);
+        var result = await AccountService.SignInAsync(db, passwords, Email, Password, ct);
         if (result.User is not { } user)
         {
             ModelState.AddModelError(nameof(Email), result.Error!);
@@ -105,8 +106,8 @@ public sealed class LoginModel(AccountService accounts, SessionService sessions,
         string? identitySessionId = null;
         if (MatIdentityPendingLink.TakeFor(HttpContext, user.Id.ToString(CultureInfo.InvariantCulture)) is { } pending)
         {
-            var link = await externalSignIn.LinkExternalAsync(
-                user.Id, new ExternalIdentity(pending.Subject, pending.Email, pending.Name, pending.PreferredUserName, pending.Role), ct);
+            var link = await ExternalSignInService.LinkExternalAsync(
+                db, user.Id, new ExternalIdentity(pending.Subject, pending.Email, pending.Name, pending.PreferredUserName, pending.Role), logger, ct);
             if (link.User is { } linked)
             {
                 user = linked;

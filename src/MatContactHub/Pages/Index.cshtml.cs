@@ -1,11 +1,12 @@
-using MatContactHub.Services;
+using MatContactHub.Data;
+using MatContactHub.Services.Auth;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
 namespace MatContactHub.Pages;
 
 /// <summary>The start page: for a visitor what MatContactHub is, for a signed-in person straight to the contacts.</summary>
-public sealed class IndexModel(AccountService accounts, CurrentUser me) : PageModel
+public sealed class IndexModel(AppDbContext db, CurrentUser me) : PageModel
 {
     public bool RegistrationOpen { get; private set; }
 
@@ -16,7 +17,7 @@ public sealed class IndexModel(AccountService accounts, CurrentUser me) : PageMo
             return LocalRedirect("/Contacts");
         }
 
-        RegistrationOpen = !await accounts.AnyUserAsync() || (await accounts.SettingsAsync()).RegistrationOpen;
+        RegistrationOpen = await AccountService.RegistrationOpenAsync(db, HttpContext.RequestAborted);
         return Page();
     }
 }

@@ -30,7 +30,7 @@ public static class LdapDirectoryBuilder
     /// <summary>Reads the directory from the database.</summary>
     public static async Task<LdapDirectory> LoadAsync(AppDbContext db, long version, CancellationToken ct)
     {
-        var settings = await LdapSettingsService.LoadAsync(db, ct);
+        var settings = (await LdapSettingsService.LoadAsync(db, Actor.System("ldap"), ct))!;
         var books = await db.AddressBooks.AsNoTracking().Where(b => b.LdapEnabled).OrderBy(b => b.SortOrder).ThenBy(b => b.Name)
             .Select(b => new LdapBookRow(b.Id, b.Name, b.LdapName, b.Description)).ToListAsync(ct);
         var ids = books.Select(b => b.Id).ToList();

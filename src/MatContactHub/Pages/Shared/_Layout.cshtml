@@ -1,6 +1,5 @@
 @inject Assets Toolkit
 @inject CurrentUser Me
-@inject MenuService Menus
 @{
     // A page fills these in: Title, PageSub (one line under it), Crumbs (the breadcrumb: a list of (Text, Url?)), Width ("narrow" or "wide"),
     // OwnHead (the page draws its own head), NavKey (the item of the menu), SearchText (the text of the search in the top bar).
@@ -11,7 +10,6 @@
     var crumbs = ViewData["Crumbs"] as IReadOnlyList<(string Text, string? Url)> ?? [];
     var width = ViewData["Width"] as string;
     var ownHead = ViewData["OwnHead"] is true;
-    var menu = await Menus.GetAsync();
     var themeAttr = user.Theme is "light" or "dark" ? $" data-theme=\"{user.Theme}\"" : string.Empty;
     var area = MenuService.AreaOf(Context.Request.Path.Value);
     var areas = MenuService.Areas(Me.IsAdmin);
@@ -54,7 +52,7 @@
                 <button type="button" class="mat-btn mat-btn--ghost mat-btn--icon mat-nav__close" data-nav-close aria-label="@L["Shell.CloseMenu"]">@Ui.Icon("x")</button>
             </div>
 
-            <partial name="_Menu" model="(menu, area)" />
+            @await Component.InvokeAsync("Menu", new { part = "nav", area })
 
             <div class="mat-nav__foot">
                 <div class="mat-nav__switch mat-nav__switch--foot">
@@ -124,10 +122,7 @@
                     @* the network: shown only while the device is offline (offline.js); a click tries again *@
                     <button type="button" class="md-offline" id="md-offline" hidden>@Ui.Icon("cloud")<span data-offline-text></span></button>
                     @await RenderSectionAsync("TopActions", required: false)
-                    @if (menu.CanCreate)
-                    {
-                        <a class="mat-btn mat-btn--primary mat-btn--icon" href="/Contacts/Edit" aria-label="@L["Contacts.New"]" data-tip="@L["Contacts.New"]">@Ui.Icon("plus")</a>
-                    }
+                    @await Component.InvokeAsync("Menu", new { part = "create", area })
                 </div>
             </header>
 

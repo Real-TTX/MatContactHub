@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Security.Cryptography.X509Certificates;
 using MatContactHub.Data;
+using MatContactHub.Services.Auth;
 using MatContactHub.Services.Contacts;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
