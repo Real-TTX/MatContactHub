@@ -59,15 +59,20 @@
 }
 
 /* ---- Offline ------------------------------------------------------------------------------------------------------- */
-/* the state in the top bar: "Offline" (a click tries again) */
+/* the state in the top bar: "Offline" (a click tries again). The pill is 32 px high; its ring is a shadow inside, so that on a touch screen and a phone a
+   transparent border makes the target 44 px like every other control of the top bar, the pill (a circle with the icon on a phone) drawn inside it. */
 .md-offline {
-  display: inline-flex; align-items: center; gap: var(--mat-space-1); height: 32px; padding: 0 var(--mat-space-3);
-  border: 1px solid var(--mat-warning); border-radius: 999px; background: var(--mat-warning-bg); color: var(--mat-warning-text); font: inherit; font-size: var(--mat-fs-xs); cursor: pointer; white-space: nowrap;
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--mat-space-1); height: 32px; padding: 0 var(--mat-space-3);
+  border: 0; border-radius: 999px; background: var(--mat-warning-bg); box-shadow: inset 0 0 0 1px var(--mat-warning); color: var(--mat-warning-text);
+  font: inherit; font-size: var(--mat-fs-xs); cursor: pointer; white-space: nowrap;
 }
 .md-offline[hidden] { display: none; }
 .md-offline .mat-icon { width: 14px; height: 14px; }
-@media (max-width: 599px) { .md-offline [data-offline-text] { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); } .md-offline { padding: 0; width: 32px; justify-content: center; } }
+@media (pointer: coarse), (max-width: 599px) { .md-offline { height: 44px; border: 6px solid transparent; background-clip: padding-box; } }
+@media (max-width: 599px) { .md-offline [data-offline-text] { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); } .md-offline { padding: 0; width: 44px; } }
 .md-offline-page .md-offline-icon { width: 40px; height: 40px; color: var(--mat-text-muted); }
+/* the offline page holds its texts in English and German: only the language of <html lang> (offline.js sets it) is shown */
+html[lang|="de"] .md-offline-page [lang="en"], html:not([lang|="de"]) .md-offline-page [lang="de"] { display: none; }
 
 /* ---- No zoom on a phone (PWA) -------------------------------------------------------------------------------------- */
 /* iOS zooms into a field whose text is smaller than 16 px as soon as it gets the focus, and a double tap zooms the page:
