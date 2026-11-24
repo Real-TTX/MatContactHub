@@ -64,6 +64,9 @@ public static class DataSourceService
     /// <summary>The records the preview reads to find the fields.</summary>
     public const int DiscoverySample = 200;
 
+    /// <summary>The longest value the preview shows (the longest column of a contact): a longer one is cut, so the page stays small.</summary>
+    public const int PreviewValueLength = 500;
+
     /// <summary>The largest CSV file.</summary>
     public const long MaxUpload = CsvConnector.MaxBytes;
 
@@ -519,7 +522,7 @@ public static class DataSourceService
                 fields.Add(record);
                 if (rows.Count < PreviewRows)
                 {
-                    rows.Add(record);
+                    rows.Add(Shortened(record));
                 }
 
                 // a few more records than shown: a field that the first ones leave out is found too
@@ -556,6 +559,18 @@ public static class DataSourceService
             return new MappedPreview(m.Key, contact.DisplayName, contact.Company, contact.Email, contact.PhoneBusiness ?? contact.PhoneMobile, problem);
         }).ToList();
         return new SourcePreview(fields.Names, rows, mapped, error);
+    }
+
+    /// <summary>A record of the preview with every value cut to <see cref="PreviewValueLength"/> (the mapping sees the cut values too: the preview only shows).</summary>
+    private static SourceRecord Shortened(SourceRecord record)
+    {
+        var copy = new SourceRecord();
+        foreach (var (name, value) in record)
+        {
+            copy[name] = value is { Length: > PreviewValueLength } ? value[..(PreviewValueLength - 1)] + "…" : value;
+        }
+
+        return copy;
     }
 
     /// <summary>

@@ -15,10 +15,14 @@ namespace MatContactHub.Services.Sources;
 /// <c>Link</c> header). Every request has its timeout; <see cref="RestSettings.MaxRecords"/> caps one read. The sign-in and the extra headers only go to the server
 /// of the configured address (<see cref="SourceHttp.IsTrusted"/>): a next page on another server is refused, a redirect to another server is followed without them.
 /// </summary>
-public sealed partial class RestConnector(RestSettings settings, SourceSecrets secrets, HttpClient http) : ISourceConnector
+public sealed partial class RestConnector(RestSettings settings, SourceSecrets secrets, HttpClient http, long maxAnswerBytes = RestConnector.MaxAnswerBytes)
+    : ISourceConnector
 {
     /// <summary>The most pages one read follows (a guard against an API that never ends).</summary>
     private const int MaxPages = 100_000;
+
+    /// <summary>The largest answer of one request (the same as a CSV file): a larger one fails the read instead of filling the memory.</summary>
+    public const long MaxAnswerBytes = CsvConnector.MaxBytes;
 
     /// <summary>The configured address: its server is the one that gets the secrets.</summary>
     private Uri _origin = null!;
@@ -86,7 +90,13 @@ public sealed partial class RestConnector(RestSettings settings, SourceSecrets s
                 throw new SourceException(Text.T("Sources.Error.Http", (int)response.StatusCode, response.ReasonPhrase ?? string.Empty, answered.GetLeftPart(UriPartial.Path)));
             }
 
-            await using var stream = await response.Content.ReadAsStreamAsync(timeout.Token);
+            // an answer larger than a CSV file may be fails before it is read (Content-Length) or while it is read
+            if (response.Content.Headers.ContentLength > maxAnswerBytes)
+            {
+                throw TooLarge();
+            }
+
+            await using var stream = new LimitedStream(await response.Content.ReadAsStreamAsync(timeout.Token), maxAnswerBytes, TooLarge);
             using var json = await JsonDocument.ParseAsync(stream, new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip },
                 timeout.Token);
             var records = Items(json.RootElement);
@@ -121,6 +131,8 @@ public sealed partial class RestConnector(RestSettings settings, SourceSecrets s
             throw new SourceException(Text.T("Sources.Error.Connect", ex.Message), ex);
         }
     }
+
+    private SourceException TooLarge() => new(Text.T("Sources.Error.AnswerTooLarge", Ui.Bytes(maxAnswerBytes)));
 
     /// <summary>A request to an address (also after a redirect): the extra headers and the sign-in only when the address is on the server of the source.</summary>
     private HttpRequestMessage BuildRequest(Uri address, HttpMethod method)

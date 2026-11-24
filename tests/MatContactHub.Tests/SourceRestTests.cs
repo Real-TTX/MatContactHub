@@ -1,6 +1,8 @@
 using System.Net;
 using System.Text;
 using System.Web;
+using MatContactHub.Localization;
+using MatContactHub.Services;
 using MatContactHub.Services.Sources;
 
 namespace MatContactHub.Tests;
@@ -275,6 +277,70 @@ public sealed class SourceRestTests
         var connector = Connector(kit, new RestSettings { Url = "https://api.example.com/c", MaxRecords = 2 });
         Assert.Equal(2, (await SourceTestKit.ReadAllAsync(connector)).Count);
         Assert.True(connector.Truncated);
+    }
+
+    [Fact]
+    public async Task An_answer_larger_than_the_cap_fails_before_it_is_read()
+    {
+        // the server says how long the answer is: it is not read at all
+        using var kit = new SourceTestKit(_ => FakeHandler.Json("[" + string.Join(',', Enumerable.Range(1, 200).Select(i => $$"""{"id":{{i}}}""")) + "]"));
+        var connector = new RestConnector(new RestSettings { Url = "https://api.example.com/c" }, new SourceSecrets(), kit.Env.Http(false), maxAnswerBytes: 1024);
+        var ex = await Assert.ThrowsAsync<SourceException>(() => SourceTestKit.ReadAllAsync(connector));
+        Assert.Equal(Text.T("Sources.Error.AnswerTooLarge", Ui.Bytes(1024)), ex.Message);
+    }
+
+    [Fact]
+    public async Task An_answer_without_a_length_is_cut_off_at_the_cap()
+    {
+        // a body without Content-Length (chunked): the read stops at the cap, long before the end
+        var stream = new EndlessJsonStream();
+        using var kit = new SourceTestKit(_ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(stream) });
+        var connector = new RestConnector(new RestSettings { Url = "https://api.example.com/c" }, new SourceSecrets(), kit.Env.Http(false), maxAnswerBytes: 64 * 1024);
+        var ex = await Assert.ThrowsAsync<SourceException>(() => SourceTestKit.ReadAllAsync(connector));
+        Assert.Equal(Text.T("Sources.Error.AnswerTooLarge", Ui.Bytes(64 * 1024)), ex.Message);
+        Assert.True(stream.Served < 1024 * 1024, $"{stream.Served} bytes read");
+    }
+
+    [Fact]
+    public void The_cap_is_the_one_of_a_csv_file()
+        => Assert.Equal(CsvConnector.MaxBytes, RestConnector.MaxAnswerBytes);
+
+    /// <summary>A JSON array that never ends (<c>[{"pad":"xxxx…</c>) and has no length.</summary>
+    private sealed class EndlessJsonStream : Stream
+    {
+        public long Served { get; private set; }
+
+        public override bool CanRead => true;
+
+        public override bool CanSeek => false;
+
+        public override bool CanWrite => false;
+
+        public override long Length => throw new NotSupportedException();
+
+        public override long Position { get => Served; set => throw new NotSupportedException(); }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            var head = "[{\"pad\":\""u8;
+            for (var i = 0; i < count; i++)
+            {
+                buffer[offset + i] = Served + i < head.Length ? head[(int)(Served + i)] : (byte)'x';
+            }
+
+            Served += count;
+            return count;
+        }
+
+        public override void Flush()
+        {
+        }
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 
     [Fact]

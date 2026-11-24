@@ -296,6 +296,23 @@ public sealed class SourceServiceTests
     }
 
     [DbFact]
+    public async Task The_preview_cuts_long_values()
+    {
+        var pad = new string('x', 100_000);
+        var (t, kit, book) = await CreateAsync(_ => FakeHandler.Json($$"""{"items":[{"id":"1","first":"Ada","pad":"{{pad}}"}]}"""));
+        await using var _ = t;
+        using var __ = kit;
+        var id = (await DataSourceService.SaveAsync(t.Db, Admin, null, new DataSourceForm("API", DataSourceKind.Rest, book, true, 60, true))).Value;
+        await DataSourceService.SaveConnectionAsync(t.Db, Admin, kit.Env, id, Rest("https://api.test/c"), null);
+        await DataSourceService.SaveMappingAsync(t.Db, Admin, id, "id", [new("FirstName", "first", FieldTransform.None), new("Notes", "pad", FieldTransform.None)]);
+        var preview = (await DataSourceService.PreviewAsync(t.Db, Admin, kit.Env, id))!;
+        var row = Assert.Single(preview.Rows);
+        Assert.Equal(DataSourceService.PreviewValueLength, row["pad"]!.Length);
+        Assert.EndsWith("…", row["pad"], StringComparison.Ordinal);
+        Assert.Equal("Ada", row["first"]);
+    }
+
+    [DbFact]
     public async Task The_runs_are_listed_newest_first_with_their_tools()
     {
         var (t, kit, book) = await CreateAsync();
